@@ -1,4 +1,3 @@
-// server.js
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
@@ -45,8 +44,9 @@ app.use('/api/quiz', require('../routes/quiz'));
 app.use('/api/competition', require('../routes/competition'));
 app.use('/api/user', require('../routes/user'));
 app.use('/api/leaderboard', require('../routes/leaderboard'));
-app.use('/api/telegram', require('../routes/telegram')); // ✅ Yangi
-app.use('/api/referral', require('../routes/referral')); // ✅ Yangi
+app.use('/api/telegram', require('../routes/telegram'));
+app.use('/api/referral', require('../routes/referral'));
+
 // Error handling middleware
 app.use(require('../middleware/errorHandler'));
 
@@ -59,8 +59,15 @@ app.get('/health', (req, res) => {
         database: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected'
     });
 });
-const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => {
-    console.log(`🚀 Server running on port ${PORT}`);
-    console.log(`📊 Environment: ${process.env.NODE_ENV || 'development'}`);
-});
+
+// Vercel uchun eksport
+module.exports = app;
+
+// Lokal development uchun
+if (require.main === module) {
+    const PORT = process.env.PORT || 5000;
+    app.listen(PORT, () => {
+        console.log(`🚀 Server running on port ${PORT}`);
+        console.log(`📊 Environment: ${process.env.NODE_ENV || 'development'}`);
+    });
+}
