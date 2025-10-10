@@ -10,6 +10,7 @@ require('dotenv').config();
 const app = express();
 
 // Security middleware
+app.set('trust proxy', true);
 app.use(helmet());
 app.use(cors());
 app.use(compression());
