@@ -60,7 +60,8 @@ router.get('/me', async (req, res) => {
             level: user.level,
             lastActive: user.lastActive,
             preferences: user.preferences,
-            onboardingCompleted: user.onboardingCompleted
+            onboardingCompleted: user.onboardingCompleted,
+            avatar: user.avatar
         };
 
         res.json({
@@ -91,6 +92,51 @@ router.get('/me', async (req, res) => {
             success: false,
             error: 'Internal server error',
             code: 'SERVER_ERROR'
+        });
+    }
+});
+
+router.get('/check/:telegramId', async (req, res) => {
+    try {
+        const { telegramId } = req.params;
+
+        console.log('Checking user existence for Telegram ID:', telegramId);
+
+        const user = await User.findOne({ telegramId: telegramId.toString() });
+
+        if (user) {
+            console.log('User found:', user._id);
+            return res.json({
+                success: true,
+                exists: true,
+                user: {
+                    id: user._id,
+                    telegramId: user.telegramId,
+                    firstName: user.firstName,
+                    lastName: user.lastName,
+                    username: user.username,
+                    name: user.firstName + (user.lastName ? ' ' + user.lastName : ''),
+                    phone: user.phone,
+                    region: user.region,
+                    birthDate: user.birthDate,
+                    bio: user.bio,
+                    accountType: user.accountType,
+                    experienceLevel: user.experienceLevel,
+                    avatar: user.avatar,
+                }
+            });
+        } else {
+            console.log('User not found for Telegram ID:', telegramId);
+            return res.json({
+                success: true,
+                exists: false
+            });
+        }
+    } catch (error) {
+        console.error('Error checking user:', error);
+        return res.status(500).json({
+            success: false,
+            error: 'Internal server error'
         });
     }
 });
@@ -155,11 +201,15 @@ router.post('/register', async (req, res) => {
             });
         }
 
+        // Generate default avatar URL
+        const defaultAvatarUrl = `https://api.dicebear.com/7.x/adventurer/svg?seed=${telegramId}`;
+
         // Create new user
         user = new User({
             telegramId: telegramId.toString(),
             firstName: firstName.trim(),
             lastName: lastName.trim(),
+            username: `user${telegramId.toString().slice(-6)}`, // Default username
             phone: phone || '',
             region: region || '',
             birthDate: birthDate ? new Date(birthDate) : undefined,
@@ -167,6 +217,8 @@ router.post('/register', async (req, res) => {
             experienceLevel: experienceLevel || 'beginner',
             quizFrequency: quizFrequency || 'occasionally',
             interests: interests || [],
+            bio: 'Quiz enthusiast and knowledge seeker', // Default bio
+            avatar: defaultAvatarUrl, // Default avatar
             isActive: true,
             lastActive: new Date(),
             onboardingCompleted: true
@@ -183,7 +235,7 @@ router.post('/register', async (req, res) => {
             { expiresIn: '30d' }
         );
 
-        // Prepare response
+        // Prepare COMPLETE user response
         const userResponse = {
             id: user._id,
             telegramId: user.telegramId,
@@ -202,15 +254,26 @@ router.post('/register', async (req, res) => {
             totalPoints: user.totalPoints,
             monthlyPoints: user.monthlyPoints,
             dailyPoints: user.dailyPoints,
+            weeklyPoints: user.weeklyPoints,
             quizzesCompleted: user.quizzesCompleted,
+            correctAnswers: user.correctAnswers,
+            totalQuestions: user.totalQuestions,
             accuracy: user.accuracy,
             currentStreak: user.currentStreak,
             longestStreak: user.longestStreak,
             rank: user.rank,
             level: user.level,
+            experience: user.experience,
             lastActive: user.lastActive,
             preferences: user.preferences,
-            onboardingCompleted: user.onboardingCompleted
+            onboardingCompleted: user.onboardingCompleted,
+            avatar: user.avatar,
+            email: user.email,
+            accountType: user.accountType,
+            experienceLevel: user.experienceLevel,
+            // Virtual fields
+            fullName: user.firstName + (user.lastName ? ' ' + user.lastName : ''),
+            age: user.birthDate ? Math.floor((new Date() - new Date(user.birthDate)) / (365.25 * 24 * 60 * 60 * 1000)) : null
         };
 
         res.status(201).json({
@@ -256,12 +319,17 @@ router.post('/register', async (req, res) => {
 router.put('/profile', async (req, res) => {
     try {
         const {
-            name,
+            firstName,
+            lastName,
+            username,
             birthDate,
             phone,
             region,
-            bio
+            bio,
+            avatar
         } = req.body;
+
+        console.log('Received profile update data:', req.body);
 
         const token = req.header('Authorization')?.replace('Bearer ', '');
 
@@ -284,18 +352,50 @@ router.put('/profile', async (req, res) => {
             });
         }
 
-        // Update fields
-        if (name) {
-            const nameParts = name.trim().split(/\s+/);
-            user.firstName = nameParts[0] || '';
-            user.lastName = nameParts.slice(1).join(' ') || '';
+        // Username tekshirish (agar o'zgartirilgan bo'lsa)
+        if (username !== undefined && username !== user.username) {
+            // Username bandligini tekshirish
+            const existingUser = await User.findOne({
+                username: username,
+                _id: { $ne: user._id }
+            });
+
+            if (existingUser) {
+                return res.status(400).json({
+                    success: false,
+                    error: 'Bu foydalanuvchi nomi band',
+                    code: 'USERNAME_TAKEN'
+                });
+            }
+
+            // Username formatini tekshirish
+            if (username && !/^[a-zA-Z0-9_]{3,20}$/.test(username)) {
+                return res.status(400).json({
+                    success: false,
+                    error: 'Foydalanuvchi nomi 3-20 belgidan iborat bo\'lishi va faqat harflar, raqamlar va pastki chiziqdan iborat bo\'lishi kerak',
+                    code: 'INVALID_USERNAME_FORMAT'
+                });
+            }
+
+            user.username = username;
         }
+
+        // Update fields - avatar har doim yangilansin
+        if (firstName !== undefined) user.firstName = firstName;
+        if (lastName !== undefined) user.lastName = lastName;
         if (birthDate !== undefined) user.birthDate = birthDate ? new Date(birthDate) : null;
         if (phone !== undefined) user.phone = phone;
         if (region !== undefined) user.region = region;
         if (bio !== undefined) user.bio = bio;
 
+        // AVATAR NI HAR DOIM YANGILASH - asosiy tuzatish
+        if (avatar !== undefined) {
+            user.avatar = avatar;
+            console.log('Avatar updated to:', avatar);
+        }
+
         await user.save();
+        console.log('User saved successfully, avatar:', user.avatar);
 
         const userResponse = {
             id: user._id,
@@ -316,6 +416,8 @@ router.put('/profile', async (req, res) => {
             monthlyPoints: user.monthlyPoints,
             dailyPoints: user.dailyPoints,
             quizzesCompleted: user.quizzesCompleted,
+            correctAnswers: user.correctAnswers,
+            totalQuestions: user.totalQuestions,
             accuracy: user.accuracy,
             currentStreak: user.currentStreak,
             longestStreak: user.longestStreak,
@@ -323,7 +425,8 @@ router.put('/profile', async (req, res) => {
             level: user.level,
             lastActive: user.lastActive,
             preferences: user.preferences,
-            onboardingCompleted: user.onboardingCompleted
+            onboardingCompleted: user.onboardingCompleted,
+            avatar: user.avatar // Yangilangan avatar ni qaytarish
         };
 
         res.json({
@@ -343,6 +446,23 @@ router.put('/profile', async (req, res) => {
             });
         }
 
+        if (error.name === 'TokenExpiredError') {
+            return res.status(401).json({
+                success: false,
+                error: 'Token expired',
+                code: 'TOKEN_EXPIRED'
+            });
+        }
+
+        // MongoDB duplicate key error
+        if (error.code === 11000) {
+            return res.status(400).json({
+                success: false,
+                error: 'Bu foydalanuvchi nomi band',
+                code: 'USERNAME_TAKEN'
+            });
+        }
+
         res.status(500).json({
             success: false,
             error: 'Internal server error',
@@ -350,5 +470,4 @@ router.put('/profile', async (req, res) => {
         });
     }
 });
-
 module.exports = router;

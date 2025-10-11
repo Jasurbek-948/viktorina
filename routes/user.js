@@ -52,61 +52,165 @@ router.get('/profile', auth, async (req, res) => {
 });
 
 // Update user profile
-router.put('/profile', auth, async (req, res) => {
+router.put('/profile', async (req, res) => {
     try {
         const {
             firstName,
             lastName,
+            username,
+            birthDate,
             phone,
             region,
-            birthDate,
-            accountType,
-            experienceLevel,
-            quizFrequency,
-            interests,
-            preferences
+            bio,
+            avatar
         } = req.body;
 
-        const user = await User.findById(req.user.id);
+        console.log('Received profile update data:', req.body);
+
+        const token = req.header('Authorization')?.replace('Bearer ', '');
+
+        if (!token) {
+            return res.status(401).json({
+                success: false,
+                error: 'No token provided',
+                code: 'NO_TOKEN'
+            });
+        }
+
+        const decoded = jwt.verify(token, process.env.JWT_SECRET || 'quiz_app_fallback_secret_2024');
+        const user = await User.findById(decoded.userId);
 
         if (!user) {
-            return res.status(404).json({ error: 'User not found' });
+            return res.status(404).json({
+                success: false,
+                error: 'User not found',
+                code: 'USER_NOT_FOUND'
+            });
+        }
+
+        // Username tekshirish (agar o'zgartirilgan bo'lsa)
+        if (username !== undefined && username !== user.username) {
+            // Username bandligini tekshirish
+            const existingUser = await User.findOne({
+                username: username,
+                _id: { $ne: user._id }
+            });
+
+            if (existingUser) {
+                return res.status(400).json({
+                    success: false,
+                    error: 'Bu foydalanuvchi nomi band',
+                    code: 'USERNAME_TAKEN'
+                });
+            }
+
+            // Username formatini tekshirish
+            if (username && !/^[a-zA-Z0-9_]{3,20}$/.test(username)) {
+                return res.status(400).json({
+                    success: false,
+                    error: 'Foydalanuvchi nomi 3-20 belgidan iborat bo\'lishi va faqat harflar, raqamlar va pastki chiziqdan iborat bo\'lishi kerak',
+                    code: 'INVALID_USERNAME_FORMAT'
+                });
+            }
+
+            user.username = username;
         }
 
         // Update fields
         if (firstName !== undefined) user.firstName = firstName;
         if (lastName !== undefined) user.lastName = lastName;
+        if (birthDate !== undefined) user.birthDate = birthDate ? new Date(birthDate) : null;
         if (phone !== undefined) user.phone = phone;
         if (region !== undefined) user.region = region;
-        if (birthDate !== undefined) user.birthDate = new Date(birthDate);
-        if (accountType !== undefined) user.accountType = accountType;
-        if (experienceLevel !== undefined) user.experienceLevel = experienceLevel;
-        if (quizFrequency !== undefined) user.quizFrequency = quizFrequency;
-        if (interests !== undefined) user.interests = interests;
-        if (preferences !== undefined) {
-            user.preferences = new Map(Object.entries(preferences));
+        if (bio !== undefined) user.bio = bio;
+
+        // AVATAR NI HAR DOIM YANGILASH
+        if (avatar !== undefined) {
+            user.avatar = avatar;
+            console.log('Avatar updated to:', avatar);
         }
 
         await user.save();
+        console.log('User saved successfully, avatar:', user.avatar);
+
+        // TO'LIQ yangilangan user ma'lumotlarini qaytarish
+        const userResponse = {
+            id: user._id,
+            telegramId: user.telegramId,
+            firstName: user.firstName,
+            lastName: user.lastName,
+            username: user.username,
+            name: user.firstName + (user.lastName ? ' ' + user.lastName : ''),
+            phone: user.phone,
+            region: user.region,
+            birthDate: user.birthDate,
+            bio: user.bio,
+            accountType: user.accountType,
+            experienceLevel: user.experienceLevel,
+            quizFrequency: user.quizFrequency,
+            interests: user.interests,
+            totalPoints: user.totalPoints,
+            monthlyPoints: user.monthlyPoints,
+            dailyPoints: user.dailyPoints,
+            weeklyPoints: user.weeklyPoints,
+            quizzesCompleted: user.quizzesCompleted,
+            correctAnswers: user.correctAnswers,
+            totalQuestions: user.totalQuestions,
+            accuracy: user.accuracy,
+            currentStreak: user.currentStreak,
+            longestStreak: user.longestStreak,
+            rank: user.rank,
+            level: user.level,
+            experience: user.experience,
+            lastActive: user.lastActive,
+            preferences: user.preferences,
+            onboardingCompleted: user.onboardingCompleted,
+            avatar: user.avatar,
+            email: user.email,
+            // Virtual fields
+            fullName: user.firstName + (user.lastName ? ' ' + user.lastName : ''),
+            age: user.birthDate ? Math.floor((new Date() - new Date(user.birthDate)) / (365.25 * 24 * 60 * 60 * 1000)) : null
+        };
 
         res.json({
+            success: true,
             message: 'Profile updated successfully',
-            user: {
-                id: user._id,
-                firstName: user.firstName,
-                lastName: user.lastName,
-                phone: user.phone,
-                region: user.region,
-                birthDate: user.birthDate,
-                accountType: user.accountType,
-                experienceLevel: user.experienceLevel,
-                quizFrequency: user.quizFrequency,
-                interests: user.interests,
-                preferences: Object.fromEntries(user.preferences)
-            }
+            user: userResponse
         });
+
     } catch (error) {
-        res.status(500).json({ error: error.message });
+        console.error('Profile update error:', error);
+
+        if (error.name === 'JsonWebTokenError') {
+            return res.status(401).json({
+                success: false,
+                error: 'Invalid token',
+                code: 'INVALID_TOKEN'
+            });
+        }
+
+        if (error.name === 'TokenExpiredError') {
+            return res.status(401).json({
+                success: false,
+                error: 'Token expired',
+                code: 'TOKEN_EXPIRED'
+            });
+        }
+
+        // MongoDB duplicate key error
+        if (error.code === 11000) {
+            return res.status(400).json({
+                success: false,
+                error: 'Bu foydalanuvchi nomi band',
+                code: 'USERNAME_TAKEN'
+            });
+        }
+
+        res.status(500).json({
+            success: false,
+            error: 'Internal server error',
+            code: 'SERVER_ERROR'
+        });
     }
 });
 
