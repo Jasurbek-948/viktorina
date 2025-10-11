@@ -230,6 +230,7 @@ router.get('/global', auth, async (req, res) => {
     }
 });
 // Weekly leaderboard
+// Weekly leaderboard - yangilangan versiya
 router.get('/weekly', auth, async (req, res) => {
     try {
         console.log('📅 Weekly leaderboard request');
@@ -248,35 +249,48 @@ router.get('/weekly', auth, async (req, res) => {
             };
         }
 
-        // Haftalik ballar bo'yicha saralash
-        const users = await User.find({
-            ...searchFilter,
-            isActive: true
-        })
-            .select('firstName lastName username weeklyPoints totalPoints quizzesCompleted accuracy level avatar')
-            .sort({ weeklyPoints: -1, totalPoints: -1 })
-            .skip(skip)
-            .limit(parseInt(limit));
-
+        // Get total count for pagination
         const total = await User.countDocuments({
             ...searchFilter,
             isActive: true
         });
 
-        const leaderboard = users.map((user, index) => ({
-            user_id: user._id,
-            rank: skip + index + 1,
-            name: `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.username,
-            username: user.username,
-            total_score: user.weeklyPoints || 0,
-            quizzes_completed: user.quizzesCompleted || 0,
-            accuracy_rate: user.accuracy || 0,
-            level: getLevelTitle(user.level || 1),
-            avatar_type: user.avatar || 'default',
-            isCurrentUser: user._id.toString() === req.user.id,
-            trend: 'stable',
-            rank_change: 0
-        }));
+        // Haftalik ballar bo'yicha saralash - AVATAR ni QO'SHISH
+        const users = await User.find({
+            ...searchFilter,
+            isActive: true
+        })
+            .select('firstName lastName username weeklyPoints totalPoints quizzesCompleted accuracy level avatar telegramId') // avatar va telegramId ni qo'shdik
+            .sort({ weeklyPoints: -1, totalPoints: -1 })
+            .skip(skip)
+            .limit(parseInt(limit));
+
+        // Format response - AVATAR ni TO'G'RI QAYTARISH
+        const leaderboard = users.map((user, index) => {
+            // Avatar URL ni to'g'ri yaratish
+            let avatarUrl = user.avatar;
+            if (!avatarUrl || avatarUrl === 'default') {
+                // Agar avatar bo'lmasa, default avatar yaratish
+                const seed = user.telegramId || user._id.toString() || 'user';
+                avatarUrl = `https://api.dicebear.com/7.x/adventurer/svg?seed=${seed}`;
+            }
+
+            return {
+                user_id: user._id,
+                rank: skip + index + 1,
+                name: `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.username,
+                username: user.username,
+                total_score: user.weeklyPoints || 0,
+                quizzes_completed: user.quizzesCompleted || 0,
+                accuracy_rate: user.accuracy || 0,
+                level: getLevelTitle(user.level || 1),
+                avatar: avatarUrl, // TO'G'RI avatar URL ni qaytarish
+                avatar_type: user.avatar ? 'custom' : 'default',
+                isCurrentUser: user._id.toString() === req.user.id,
+                trend: 'stable',
+                rank_change: 0
+            };
+        });
 
         // Current user rank
         const currentUserRank = await User.countDocuments({
@@ -300,7 +314,8 @@ router.get('/weekly', auth, async (req, res) => {
                 score: req.user.weeklyPoints || 0,
                 quizzes: req.user.quizzesCompleted || 0,
                 accuracy: req.user.accuracy || 0,
-                level: getLevelTitle(req.user.level || 1)
+                level: getLevelTitle(req.user.level || 1),
+                avatar: req.user.avatar || `https://api.dicebear.com/7.x/adventurer/svg?seed=${req.user.telegramId || req.user._id}` // current user avatar
             }
         });
 
@@ -314,7 +329,7 @@ router.get('/weekly', auth, async (req, res) => {
     }
 });
 
-// Monthly leaderboard
+// Monthly leaderboard - yangilangan versiya
 router.get('/monthly', auth, async (req, res) => {
     try {
         console.log('📊 Monthly leaderboard request');
@@ -333,35 +348,48 @@ router.get('/monthly', auth, async (req, res) => {
             };
         }
 
-        // Oylik ballar bo'yicha saralash
-        const users = await User.find({
-            ...searchFilter,
-            isActive: true
-        })
-            .select('firstName lastName username monthlyPoints totalPoints quizzesCompleted accuracy level avatar')
-            .sort({ monthlyPoints: -1, totalPoints: -1 })
-            .skip(skip)
-            .limit(parseInt(limit));
-
+        // Get total count for pagination
         const total = await User.countDocuments({
             ...searchFilter,
             isActive: true
         });
 
-        const leaderboard = users.map((user, index) => ({
-            user_id: user._id,
-            rank: skip + index + 1,
-            name: `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.username,
-            username: user.username,
-            total_score: user.monthlyPoints || 0,
-            quizzes_completed: user.quizzesCompleted || 0,
-            accuracy_rate: user.accuracy || 0,
-            level: getLevelTitle(user.level || 1),
-            avatar_type: user.avatar || 'default',
-            isCurrentUser: user._id.toString() === req.user.id,
-            trend: 'stable',
-            rank_change: 0
-        }));
+        // Oylik ballar bo'yicha saralash - AVATAR ni QO'SHISH
+        const users = await User.find({
+            ...searchFilter,
+            isActive: true
+        })
+            .select('firstName lastName username monthlyPoints totalPoints quizzesCompleted accuracy level avatar telegramId') // avatar va telegramId ni qo'shdik
+            .sort({ monthlyPoints: -1, totalPoints: -1 })
+            .skip(skip)
+            .limit(parseInt(limit));
+
+        // Format response - AVATAR ni TO'G'RI QAYTARISH
+        const leaderboard = users.map((user, index) => {
+            // Avatar URL ni to'g'ri yaratish
+            let avatarUrl = user.avatar;
+            if (!avatarUrl || avatarUrl === 'default') {
+                // Agar avatar bo'lmasa, default avatar yaratish
+                const seed = user.telegramId || user._id.toString() || 'user';
+                avatarUrl = `https://api.dicebear.com/7.x/adventurer/svg?seed=${seed}`;
+            }
+
+            return {
+                user_id: user._id,
+                rank: skip + index + 1,
+                name: `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.username,
+                username: user.username,
+                total_score: user.monthlyPoints || 0,
+                quizzes_completed: user.quizzesCompleted || 0,
+                accuracy_rate: user.accuracy || 0,
+                level: getLevelTitle(user.level || 1),
+                avatar: avatarUrl, // TO'G'RI avatar URL ni qaytarish
+                avatar_type: user.avatar ? 'custom' : 'default',
+                isCurrentUser: user._id.toString() === req.user.id,
+                trend: 'stable',
+                rank_change: 0
+            };
+        });
 
         // Current user rank
         const currentUserRank = await User.countDocuments({
@@ -385,7 +413,8 @@ router.get('/monthly', auth, async (req, res) => {
                 score: req.user.monthlyPoints || 0,
                 quizzes: req.user.quizzesCompleted || 0,
                 accuracy: req.user.accuracy || 0,
-                level: getLevelTitle(req.user.level || 1)
+                level: getLevelTitle(req.user.level || 1),
+                avatar: req.user.avatar || `https://api.dicebear.com/7.x/adventurer/svg?seed=${req.user.telegramId || req.user._id}` // current user avatar
             }
         });
 
@@ -399,7 +428,7 @@ router.get('/monthly', auth, async (req, res) => {
     }
 });
 
-// Daily leaderboard
+// Daily leaderboard - yangilangan versiya
 router.get('/daily', auth, async (req, res) => {
     try {
         console.log('📅 Daily leaderboard request');
@@ -418,35 +447,48 @@ router.get('/daily', auth, async (req, res) => {
             };
         }
 
-        // Kunlik ballar bo'yicha saralash
-        const users = await User.find({
-            ...searchFilter,
-            isActive: true
-        })
-            .select('firstName lastName username dailyPoints totalPoints quizzesCompleted accuracy level avatar')
-            .sort({ dailyPoints: -1, totalPoints: -1 })
-            .skip(skip)
-            .limit(parseInt(limit));
-
+        // Get total count for pagination
         const total = await User.countDocuments({
             ...searchFilter,
             isActive: true
         });
 
-        const leaderboard = users.map((user, index) => ({
-            user_id: user._id,
-            rank: skip + index + 1,
-            name: `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.username,
-            username: user.username,
-            total_score: user.dailyPoints || 0,
-            quizzes_completed: user.quizzesCompleted || 0,
-            accuracy_rate: user.accuracy || 0,
-            level: getLevelTitle(user.level || 1),
-            avatar_type: user.avatar || 'default',
-            isCurrentUser: user._id.toString() === req.user.id,
-            trend: 'stable',
-            rank_change: 0
-        }));
+        // Kunlik ballar bo'yicha saralash - AVATAR ni QO'SHISH
+        const users = await User.find({
+            ...searchFilter,
+            isActive: true
+        })
+            .select('firstName lastName username dailyPoints totalPoints quizzesCompleted accuracy level avatar telegramId') // avatar va telegramId ni qo'shdik
+            .sort({ dailyPoints: -1, totalPoints: -1 })
+            .skip(skip)
+            .limit(parseInt(limit));
+
+        // Format response - AVATAR ni TO'G'RI QAYTARISH
+        const leaderboard = users.map((user, index) => {
+            // Avatar URL ni to'g'ri yaratish
+            let avatarUrl = user.avatar;
+            if (!avatarUrl || avatarUrl === 'default') {
+                // Agar avatar bo'lmasa, default avatar yaratish
+                const seed = user.telegramId || user._id.toString() || 'user';
+                avatarUrl = `https://api.dicebear.com/7.x/adventurer/svg?seed=${seed}`;
+            }
+
+            return {
+                user_id: user._id,
+                rank: skip + index + 1,
+                name: `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.username,
+                username: user.username,
+                total_score: user.dailyPoints || 0,
+                quizzes_completed: user.quizzesCompleted || 0,
+                accuracy_rate: user.accuracy || 0,
+                level: getLevelTitle(user.level || 1),
+                avatar: avatarUrl, // TO'G'RI avatar URL ni qaytarish
+                avatar_type: user.avatar ? 'custom' : 'default',
+                isCurrentUser: user._id.toString() === req.user.id,
+                trend: 'stable',
+                rank_change: 0
+            };
+        });
 
         // Current user rank
         const currentUserRank = await User.countDocuments({
@@ -470,7 +512,8 @@ router.get('/daily', auth, async (req, res) => {
                 score: req.user.dailyPoints || 0,
                 quizzes: req.user.quizzesCompleted || 0,
                 accuracy: req.user.accuracy || 0,
-                level: getLevelTitle(req.user.level || 1)
+                level: getLevelTitle(req.user.level || 1),
+                avatar: req.user.avatar || `https://api.dicebear.com/7.x/adventurer/svg?seed=${req.user.telegramId || req.user._id}` // current user avatar
             }
         });
 
@@ -484,36 +527,49 @@ router.get('/daily', auth, async (req, res) => {
     }
 });
 
-// Friends leaderboard
+// Friends leaderboard - yangilangan versiya
 router.get('/friends', auth, async (req, res) => {
     try {
         console.log('👥 Friends leaderboard request');
         const { page = 1, limit = 20 } = req.query;
         const skip = (page - 1) * limit;
 
-        // Hozircha do'stlar tizimi yo'q, shuning uchun global qaytaramiz
+        // Get total count for pagination
+        const total = await User.countDocuments({ isActive: true });
+
+        // Hozircha do'stlar tizimi yo'q, shuning uchun global qaytaramiz - AVATAR ni QO'SHISH
         const users = await User.find({ isActive: true })
-            .select('firstName lastName username totalPoints quizzesCompleted accuracy level avatar')
+            .select('firstName lastName username totalPoints quizzesCompleted accuracy level avatar telegramId') // avatar va telegramId ni qo'shdik
             .sort({ totalPoints: -1 })
             .skip(skip)
             .limit(parseInt(limit));
 
-        const total = await User.countDocuments({ isActive: true });
+        // Format response - AVATAR ni TO'G'RI QAYTARISH
+        const leaderboard = users.map((user, index) => {
+            // Avatar URL ni to'g'ri yaratish
+            let avatarUrl = user.avatar;
+            if (!avatarUrl || avatarUrl === 'default') {
+                // Agar avatar bo'lmasa, default avatar yaratish
+                const seed = user.telegramId || user._id.toString() || 'user';
+                avatarUrl = `https://api.dicebear.com/7.x/adventurer/svg?seed=${seed}`;
+            }
 
-        const leaderboard = users.map((user, index) => ({
-            user_id: user._id,
-            rank: skip + index + 1,
-            name: `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.username,
-            username: user.username,
-            total_score: user.totalPoints || 0,
-            quizzes_completed: user.quizzesCompleted || 0,
-            accuracy_rate: user.accuracy || 0,
-            level: getLevelTitle(user.level || 1),
-            avatar_type: user.avatar || 'default',
-            isCurrentUser: user._id.toString() === req.user.id,
-            trend: 'stable',
-            rank_change: 0
-        }));
+            return {
+                user_id: user._id,
+                rank: skip + index + 1,
+                name: `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.username,
+                username: user.username,
+                total_score: user.totalPoints || 0,
+                quizzes_completed: user.quizzesCompleted || 0,
+                accuracy_rate: user.accuracy || 0,
+                level: getLevelTitle(user.level || 1),
+                avatar: avatarUrl, // TO'G'RI avatar URL ni qaytarish
+                avatar_type: user.avatar ? 'custom' : 'default',
+                isCurrentUser: user._id.toString() === req.user.id,
+                trend: 'stable',
+                rank_change: 0
+            };
+        });
 
         // Current user rank
         const currentUserRank = await User.countDocuments({
@@ -537,7 +593,8 @@ router.get('/friends', auth, async (req, res) => {
                 score: req.user.totalPoints || 0,
                 quizzes: req.user.quizzesCompleted || 0,
                 accuracy: req.user.accuracy || 0,
-                level: getLevelTitle(req.user.level || 1)
+                level: getLevelTitle(req.user.level || 1),
+                avatar: req.user.avatar || `https://api.dicebear.com/7.x/adventurer/svg?seed=${req.user.telegramId || req.user._id}` // current user avatar
             }
         });
 
@@ -550,7 +607,6 @@ router.get('/friends', auth, async (req, res) => {
         });
     }
 });
-
 // User rank history
 router.get('/user/rank-history', auth, async (req, res) => {
     try {
