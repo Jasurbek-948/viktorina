@@ -156,31 +156,42 @@ router.get('/global', auth, async (req, res) => {
             isActive: true
         });
 
-        // Get users with pagination and sorting by total points
+        // Get users with pagination and sorting by total points - AVATAR ni QO'SHISH
         const users = await User.find({
             ...searchFilter,
             isActive: true
         })
-            .select('firstName lastName username totalPoints monthlyPoints weeklyPoints dailyPoints quizzesCompleted accuracy level avatar rankHistory')
+            .select('firstName lastName username totalPoints monthlyPoints weeklyPoints dailyPoints quizzesCompleted accuracy level avatar rankHistory telegramId') // avatar ni qo'shdik
             .sort({ totalPoints: -1, accuracy: -1, quizzesCompleted: -1 })
             .skip(skip)
             .limit(parseInt(limit));
 
-        // Format response
-        const leaderboard = users.map((user, index) => ({
-            user_id: user._id,
-            rank: skip + index + 1,
-            name: `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.username,
-            username: user.username,
-            total_score: user.totalPoints || 0,
-            quizzes_completed: user.quizzesCompleted || 0,
-            accuracy_rate: user.accuracy || 0,
-            level: getLevelTitle(user.level || 1),
-            avatar_type: user.avatar || 'default',
-            isCurrentUser: user._id.toString() === req.user.id,
-            trend: getTrend(user.rankHistory || []),
-            rank_change: getRankChange(user.rankHistory || [])
-        }));
+        // Format response - AVATAR ni TO'G'RI QAYTARISH
+        const leaderboard = users.map((user, index) => {
+            // Avatar URL ni to'g'ri yaratish
+            let avatarUrl = user.avatar;
+            if (!avatarUrl || avatarUrl === 'default') {
+                // Agar avatar bo'lmasa, default avatar yaratish
+                const seed = user.telegramId || user._id.toString() || 'user';
+                avatarUrl = `https://api.dicebear.com/7.x/adventurer/svg?seed=${seed}`;
+            }
+
+            return {
+                user_id: user._id,
+                rank: skip + index + 1,
+                name: `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.username,
+                username: user.username,
+                total_score: user.totalPoints || 0,
+                quizzes_completed: user.quizzesCompleted || 0,
+                accuracy_rate: user.accuracy || 0,
+                level: getLevelTitle(user.level || 1),
+                avatar: avatarUrl, // TO'G'RI avatar URL ni qaytarish
+                avatar_type: user.avatar ? 'custom' : 'default',
+                isCurrentUser: user._id.toString() === req.user.id,
+                trend: getTrend(user.rankHistory || []),
+                rank_change: getRankChange(user.rankHistory || [])
+            };
+        });
 
         // Get current user's rank
         const currentUserRank = await User.countDocuments({
@@ -204,7 +215,8 @@ router.get('/global', auth, async (req, res) => {
                 score: req.user.totalPoints || 0,
                 quizzes: req.user.quizzesCompleted || 0,
                 accuracy: req.user.accuracy || 0,
-                level: getLevelTitle(req.user.level || 1)
+                level: getLevelTitle(req.user.level || 1),
+                avatar: req.user.avatar || `https://api.dicebear.com/7.x/adventurer/svg?seed=${req.user.telegramId || req.user._id}` // current user avatar
             }
         });
 
@@ -217,7 +229,6 @@ router.get('/global', auth, async (req, res) => {
         });
     }
 });
-
 // Weekly leaderboard
 router.get('/weekly', auth, async (req, res) => {
     try {
