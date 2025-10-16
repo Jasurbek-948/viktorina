@@ -6,47 +6,68 @@ const adminAuth = require('../middleware/adminAuth');
 
 // ✅ Soddalashtirilgan validation middleware
 const validateCompetition = (req, res, next) => {
+    console.log('🔍 Validatsiya boshlandi. Body:', req.body);
+
     const { name, startDate, endDate, prizePool } = req.body;
 
+    // Majburiy maydonlarni tekshirish
     if (!name || !startDate || !endDate) {
+        console.log('❌ Validatsiya xatosi: Majburiy maydonlar yo\'q');
         return res.status(400).json({
             success: false,
             message: 'Musobaqa nomi, boshlanish va tugash sanalari majburiy'
         });
     }
 
+    // Sana tekshirish
     if (new Date(startDate) >= new Date(endDate)) {
+        console.log('❌ Validatsiya xatosi: Sanalar noto\'g\'ri');
         return res.status(400).json({
             success: false,
             message: 'Boshlanish sanasi tugash sanasidan oldin bo\'lishi kerak'
         });
     }
 
-    if (prizePool && prizePool < 0) {
+    // Prize pool tekshirish
+    if (prizePool && (isNaN(prizePool) || prizePool < 0)) {
+        console.log('❌ Validatsiya xatosi: Prize pool noto\'g\'ri');
         return res.status(400).json({
             success: false,
             message: 'Yutuq jamg\'armasi manfiy bo\'lmasligi kerak'
         });
     }
 
+    console.log('✅ Validatsiya muvaffaqiyatli');
     next();
 };
 
-// ✅ Yangi competition yaratish (Soddalashtirilgan)
+// ✅ Yangi competition yaratish (Debug qo'shilgan)
 router.post('/', adminAuth, validateCompetition, async (req, res) => {
     try {
+        console.log('🚀 POST /api/admin/competitions - Yangi musobaqa yaratish');
+        console.log('📦 Request body:', req.body);
+        console.log('👤 Admin ID:', req.admin._id);
+
         const { name, description, startDate, endDate, prizePool } = req.body;
 
-        const competition = new Competition({
-            name,
-            description: description || '',
-            startDate,
-            endDate,
-            prizePool: prizePool || 0,
+        // Ma'lumotlarni tozalash va formatlash
+        const competitionData = {
+            name: name.trim(),
+            description: description ? description.trim() : '',
+            startDate: new Date(startDate),
+            endDate: new Date(endDate),
+            prizePool: prizePool ? Number(prizePool) : 0,
             createdBy: req.admin._id
-        });
+        };
+
+        console.log('🧹 Tozalangan ma\'lumotlar:', competitionData);
+
+        // Yangi competition yaratish
+        const competition = new Competition(competitionData);
+        console.log('📝 Yangi competition yaratildi:', competition);
 
         await competition.save();
+        console.log('💾 Competition saqlandi');
 
         res.status(201).json({
             success: true,
@@ -55,7 +76,18 @@ router.post('/', adminAuth, validateCompetition, async (req, res) => {
         });
 
     } catch (error) {
-        console.error('Competition yaratish xatosi:', error);
+        console.error('❌ Competition yaratish xatosi:', error);
+
+        // MongoDB validation xatolari uchun batafsil xabar
+        if (error.name === 'ValidationError') {
+            const errors = Object.values(error.errors).map(err => err.message);
+            return res.status(400).json({
+                success: false,
+                message: 'Validatsiya xatosi: ' + errors.join(', ')
+            });
+        }
+
+        // Boshqa server xatolari
         res.status(500).json({
             success: false,
             message: 'Server xatosi: ' + error.message
@@ -125,6 +157,7 @@ router.get('/', adminAuth, async (req, res) => {
         });
     }
 });
+
 
 // ✅ Competition ma'lumotlarini olish
 router.get('/:id', adminAuth, async (req, res) => {
