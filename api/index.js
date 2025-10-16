@@ -40,13 +40,13 @@ mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/quiz_comp
 
 // Routes
 app.use('/api/auth', require('../routes/auth'));
-app.use('/api/admin', require('../routes/admin'));
 app.use('/api/quiz', require('../routes/quiz'));
 app.use('/api/competition', require('../routes/competition'));
 app.use('/api/user', require('../routes/user'));
 app.use('/api/leaderboard', require('../routes/leaderboard'));
 app.use('/api/telegram', require('../routes/telegram'));
 app.use('/api/referral', require('../routes/referral'));
+app.use('/api/admin', require('../routes/admin'));
 app.use('/api/admin', require('../routes/adminCompetitionRoutes'));
 app.use('/api/admin', require('../routes/adminQuizRoutes'));
 app.use('/api/admin', require('../routes/adminUserRoutes'));
