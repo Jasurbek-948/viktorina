@@ -51,6 +51,7 @@ app.use('/api/admin', require('../routes/adminCompetitionRoutes'));
 app.use('/api/admin', require('../routes/adminQuizRoutes'));
 app.use('/api/admin', require('../routes/adminUserRoutes'));
 app.use('/api/admin', require('../routes/adminStatsRoutes'));
+app.use('/api', require('../routes/adminAuth'));
 // Error handling middleware
 app.use(require('../middleware/errorHandler'));
 
