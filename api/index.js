@@ -9,10 +9,18 @@ require('dotenv').config();
 
 const app = express();
 
+// CORS sozlamalari
+const corsOptions = {
+    origin: ['http://localhost:3001', 'https://viktorina-utuu.vercel.app'], // O'z frontend manzillingizni qo'shing
+    credentials: true,
+    optionsSuccessStatus: 200
+};
+
+app.use(cors(corsOptions));
+
 // Security middleware
 app.set('trust proxy', true);
 app.use(helmet());
-app.use(cors());
 app.use(compression());
 app.use(morgan('combined'));
 
@@ -39,21 +47,22 @@ mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/quiz_comp
     .catch(err => console.error('❌ MongoDB connection error:', err));
 
 // Routes
-app.use('/api/auth', require('../routes/auth'));
-app.use('/api/quiz', require('../routes/quiz'));
-app.use('/api/competition', require('../routes/competition'));
-app.use('/api/user', require('../routes/user'));
-app.use('/api/leaderboard', require('../routes/leaderboard'));
-app.use('/api/telegram', require('../routes/telegram'));
-app.use('/api/referral', require('../routes/referral'));
-app.use('/api/admin', require('../routes/admin'));
-app.use('/api/admin', require('../routes/adminCompetitionRoutes'));
-app.use('/api/admin', require('../routes/adminQuizRoutes'));
-app.use('/api/admin', require('../routes/adminUserRoutes'));
-app.use('/api/admin', require('../routes/adminStatsRoutes'));
-app.use('/api', require('../routes/adminAuth'));
+app.use('/api/auth', require('./routes/auth'));
+app.use('/api/quiz', require('./routes/quiz'));
+app.use('/api/competition', require('./routes/competition'));
+app.use('/api/user', require('./routes/user'));
+app.use('/api/leaderboard', require('./routes/leaderboard'));
+app.use('/api/telegram', require('./routes/telegram'));
+app.use('/api/referral', require('./routes/referral'));
+app.use('/api/admin', require('./routes/admin'));
+app.use('/api/admin', require('./routes/adminCompetitionRoutes'));
+app.use('/api/admin', require('./routes/adminQuizRoutes'));
+app.use('/api/admin', require('./routes/adminUserRoutes'));
+app.use('/api/admin', require('./routes/adminStatsRoutes'));
+app.use('/api', require('./routes/adminAuth'));
+
 // Error handling middleware
-app.use(require('../middleware/errorHandler'));
+app.use(require('./middleware/errorHandler'));
 
 app.get('/health', (req, res) => {
     res.json({
