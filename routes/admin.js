@@ -6,38 +6,99 @@ const Competition = require('../models/Competition');
 const User = require('../models/User');
 const auth = require('../middleware/auth');
 const adminAuth = require('../middleware/adminAuth');
-
+const QuizAttempt = require('../models/QuizAttempt');
 // Admin dashboard stats
 router.get('/dashboard', adminAuth, async (req, res) => {
     try {
+        // Asosiy statistika
         const totalUsers = await User.countDocuments();
         const activeUsers = await User.countDocuments({ isActive: true });
         const totalQuizzes = await Quiz.countDocuments();
+        const activeQuizzes = await Quiz.countDocuments({ isActive: true });
+        const totalCompetitions = await Competition.countDocuments();
         const activeCompetitions = await Competition.countDocuments({ isActive: true });
 
+        // Bugungi statistika
         const today = new Date();
         today.setHours(0, 0, 0, 0);
+
         const newUsersToday = await User.countDocuments({
             createdAt: { $gte: today }
         });
 
-        const quizAttemptsToday = await QuizAttempt.countDocuments({
-            createdAt: { $gte: today }
+        // QuizAttempt mavjudligini tekshirish
+        let quizAttemptsToday = 0;
+        try {
+            quizAttemptsToday = await QuizAttempt.countDocuments({
+                createdAt: { $gte: today }
+            });
+        } catch (error) {
+            console.log('QuizAttempt modeli mavjud emas, default qiymat ishlatilmoqda');
+        }
+
+        // Haftalik o'sish
+        const oneWeekAgo = new Date();
+        oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
+
+        const newUsersThisWeek = await User.countDocuments({
+            createdAt: { $gte: oneWeekAgo }
         });
 
+        let quizAttemptsThisWeek = 0;
+        try {
+            quizAttemptsThisWeek = await QuizAttempt.countDocuments({
+                createdAt: { $gte: oneWeekAgo }
+            });
+        } catch (error) {
+            console.log('QuizAttempt modeli mavjud emas, default qiymat ishlatilmoqda');
+        }
+
+        // So'nggi foydalanuvchilar
+        const recentUsers = await User.find()
+            .sort({ createdAt: -1 })
+            .limit(5)
+            .select('firstName lastName username createdAt totalPoints');
+
+        // Top foydalanuvchilar
+        const topUsers = await User.find()
+            .sort({ totalPoints: -1 })
+            .limit(5)
+            .select('firstName lastName username totalPoints rank');
+
+        // Aktiv musobaqalar
+        const activeCompetitionsList = await Competition.find({ isActive: true })
+            .sort({ startDate: -1 })
+            .limit(3)
+            .select('name startDate endDate totalParticipants');
+
         res.json({
-            totalUsers,
-            activeUsers,
-            totalQuizzes,
-            activeCompetitions,
-            newUsersToday,
-            quizAttemptsToday
+            success: true,
+            stats: {
+                totalUsers,
+                activeUsers,
+                totalQuizzes,
+                activeQuizzes,
+                totalCompetitions,
+                activeCompetitions,
+                newUsersToday,
+                quizAttemptsToday,
+                newUsersThisWeek,
+                quizAttemptsThisWeek
+            },
+            recentUsers,
+            topUsers,
+            activeCompetitions: activeCompetitionsList
         });
     } catch (error) {
-        res.status(500).json({ error: error.message });
+        console.error('Dashboard stats error:', error);
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
     }
 });
 
+module.exports = router;
 // Create new quiz
 router.post('/quizzes', adminAuth, async (req, res) => {
     try {
