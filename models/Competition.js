@@ -1,4 +1,3 @@
-// models/Competition.js
 const mongoose = require('mongoose');
 
 const competitionSchema = new mongoose.Schema({
@@ -20,6 +19,10 @@ const competitionSchema = new mongoose.Schema({
         required: true
     },
     isActive: {
+        type: Boolean,
+        default: false
+    },
+    isPublished: {
         type: Boolean,
         default: false
     },
@@ -57,15 +60,22 @@ const competitionSchema = new mongoose.Schema({
         enum: ['easy', 'medium', 'hard'],
         default: 'medium'
     },
-    dailyQuizzes: [{
-        date: Date,
+    // 🔥 O'ZGARISH: dailyQuizzes o'rniga quizzes
+    quizzes: [{
         quizId: {
             type: mongoose.Schema.Types.ObjectId,
             ref: 'Quiz'
         },
+        title: String,
+        description: String,
+        order: Number, // Quiz tartibi
         isActive: {
             type: Boolean,
             default: true
+        },
+        addedAt: {
+            type: Date,
+            default: Date.now
         }
     }],
     leaderboard: [{
@@ -80,7 +90,12 @@ const competitionSchema = new mongoose.Schema({
         rank: Number,
         quizzesCompleted: Number,
         accuracy: Number
-    }]
+    }],
+    createdBy: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Admin',
+        required: true
+    }
 }, {
     timestamps: true
 });
@@ -113,6 +128,26 @@ competitionSchema.methods.updateLeaderboard = async function () {
     }));
 
     await this.save();
+};
+
+// Competitionga quiz qo'shish
+competitionSchema.methods.addQuiz = async function (quizId, title, description, order) {
+    const quizExists = this.quizzes.some(q => q.quizId.toString() === quizId.toString());
+
+    if (quizExists) {
+        throw new Error('Bu quiz allaqachon competitionga qo\'shilgan');
+    }
+
+    this.quizzes.push({
+        quizId,
+        title,
+        description,
+        order: order || this.quizzes.length + 1,
+        isActive: true
+    });
+
+    await this.save();
+    return this;
 };
 
 module.exports = mongoose.model('Competition', competitionSchema);

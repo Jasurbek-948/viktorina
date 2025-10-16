@@ -1,4 +1,3 @@
-// models/Quiz.js
 const mongoose = require('mongoose');
 
 const questionSchema = new mongoose.Schema({
@@ -79,13 +78,14 @@ const quizSchema = new mongoose.Schema({
         type: Boolean,
         default: false
     },
-    isCompetition: {
-        type: Boolean,
-        default: false
-    },
+    // 🔥 YANGI: Competition bilan bog'lash
     competitionId: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Competition'
+    },
+    isCompetitionQuiz: {
+        type: Boolean,
+        default: false
     },
     attempts: {
         type: Number,
@@ -97,7 +97,7 @@ const quizSchema = new mongoose.Schema({
     },
     createdBy: {
         type: mongoose.Schema.Types.ObjectId,
-        ref: 'User'
+        ref: 'Admin'
     },
     tags: [String]
 }, {
@@ -105,21 +105,17 @@ const quizSchema = new mongoose.Schema({
 });
 
 quizSchema.pre('save', function (next) {
-
     this.totalQuestions = this.questions?.length || 0;
     this.totalPoints = this.questions?.reduce((sum, question) => {
         return sum + (question.points || 10);
     }, 0) || 0;
+
+    // Agar competitionId bo'lsa, competition quiz ekanligini belgilash
+    if (this.competitionId) {
+        this.isCompetitionQuiz = true;
+    }
 
     next();
 });
-
-quizSchema.methods.calculateTotals = function () {
-    this.totalQuestions = this.questions?.length || 0;
-    this.totalPoints = this.questions?.reduce((sum, question) => {
-        return sum + (question.points || 10);
-    }, 0) || 0;
-    return this;
-};
 
 module.exports = mongoose.model('Quiz', quizSchema);
