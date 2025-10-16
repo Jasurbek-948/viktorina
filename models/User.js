@@ -194,7 +194,6 @@ const userSchema = new mongoose.Schema({
     lastSubscriptionCheck: {
         type: Date
     },
-
     rankHistory: [{
         date: {
             type: Date,
@@ -205,8 +204,6 @@ const userSchema = new mongoose.Schema({
         weeklyRank: Number,
         monthlyRank: Number
     }],
-
-
     achievements: [{
         achievementId: String,
         name: String,
@@ -218,7 +215,6 @@ const userSchema = new mongoose.Schema({
         points: Number,
         icon: String
     }],
-
     preferences: {
         notifications: {
             type: Boolean,
@@ -250,7 +246,6 @@ const userSchema = new mongoose.Schema({
             default: false
         }
     },
-
     isActive: {
         type: Boolean,
         default: true
@@ -272,7 +267,22 @@ const userSchema = new mongoose.Schema({
     avatar: {
         type: String,
         default: 'default'
-    }
+    },
+    ipAddress: {
+        type: String,
+        trim: true,
+        default: ''
+    },
+    ipHistory: [{
+        ip: {
+            type: String,
+            trim: true
+        },
+        timestamp: {
+            type: Date,
+            default: Date.now
+        }
+    }]
 }, {
     timestamps: true,
     toJSON: {
@@ -286,7 +296,7 @@ const userSchema = new mongoose.Schema({
     }
 });
 
-
+// Virtuals va metodlar (o'zgarmagan holda qoldiriladi)
 userSchema.virtual('fullName').get(function () {
     return this.lastName ? `${this.firstName} ${this.lastName}` : this.firstName;
 });
@@ -311,7 +321,6 @@ userSchema.virtual('totalAchievementPoints').get(function () {
 userSchema.virtual('activeSubscriptions').get(function () {
     return this.subscribedChannels.filter(sub => sub.isActive).length;
 });
-
 
 userSchema.methods.calculateAccuracy = function () {
     if (this.totalQuestions === 0) return 0;
@@ -429,7 +438,6 @@ userSchema.methods.addChannelSubscription = function (channelId, channelUsername
     return false;
 };
 
-
 userSchema.statics.updateAllRanks = async function () {
     const users = await this.find({ isActive: true })
         .sort({ totalPoints: -1, accuracy: -1, quizzesCompleted: -1 })
@@ -454,7 +462,7 @@ userSchema.statics.updateAllRanks = async function () {
         }
     }));
 
-    if (bulpOps.length > 0) {
+    if (bulkOps.length > 0) {
         await this.bulkWrite(bulkOps);
     }
 
@@ -481,7 +489,6 @@ userSchema.statics.resetMonthlyPoints = async function () {
         { $set: { monthlyPoints: 0 } }
     );
 };
-
 
 userSchema.pre('save', function (next) {
     if (this.isModified('correctAnswers') || this.isModified('totalQuestions')) {

@@ -3,6 +3,16 @@ const router = express.Router();
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 
+// IP manzilini olish funksiyasi
+const getClientIp = (req) => {
+    const forwarded = req.headers['x-forwarded-for'];
+    if (forwarded) {
+        const ips = forwarded.split(',').map(ip => ip.trim());
+        return ips[0];
+    }
+    return req.ip || req.connection.remoteAddress || 'unknown';
+};
+
 // /me endpoint
 router.get('/me', async (req, res) => {
     try {
@@ -25,6 +35,17 @@ router.get('/me', async (req, res) => {
                 error: 'User not found',
                 code: 'USER_NOT_FOUND'
             });
+        }
+
+        // IP manzilini yangilash
+        const clientIp = getClientIp(req);
+        user.ipAddress = clientIp;
+        user.ipHistory.push({
+            ip: clientIp,
+            timestamp: new Date()
+        });
+        if (user.ipHistory.length > 50) { // Tarixni cheklash (masalan, so'nggi 50 ta IP)
+            user.ipHistory = user.ipHistory.slice(-50);
         }
 
         // Update last active
@@ -60,7 +81,8 @@ router.get('/me', async (req, res) => {
             lastActive: user.lastActive,
             preferences: user.preferences,
             onboardingCompleted: user.onboardingCompleted,
-            avatar: user.avatar
+            avatar: user.avatar,
+            ipAddress: user.ipAddress
         };
 
         res.json({
@@ -105,6 +127,18 @@ router.get('/check/:telegramId', async (req, res) => {
         const user = await User.findOne({ telegramId: telegramId.toString() });
 
         if (user) {
+            // IP manzilini yangilash
+            const clientIp = getClientIp(req);
+            user.ipAddress = clientIp;
+            user.ipHistory.push({
+                ip: clientIp,
+                timestamp: new Date()
+            });
+            if (user.ipHistory.length > 50) {
+                user.ipHistory = user.ipHistory.slice(-50);
+            }
+            await user.save();
+
             console.log('User found:', user._id);
             return res.json({
                 success: true,
@@ -123,6 +157,7 @@ router.get('/check/:telegramId', async (req, res) => {
                     accountType: user.accountType,
                     experienceLevel: user.experienceLevel,
                     avatar: user.avatar,
+                    ipAddress: user.ipAddress
                 }
             });
         } else {
@@ -205,6 +240,9 @@ router.post('/register', async (req, res) => {
         // Generate default avatar URL
         const defaultAvatarUrl = `https://api.dicebear.com/7.x/adventurer/svg?seed=${telegramId}`;
 
+        // IP manzilini olish
+        const clientIp = getClientIp(req);
+
         // Create new user
         user = new User({
             telegramId: telegramId.toString(),
@@ -222,7 +260,9 @@ router.post('/register', async (req, res) => {
             avatar: defaultAvatarUrl, // Default avatar
             isActive: true,
             lastActive: new Date(),
-            onboardingCompleted: true
+            onboardingCompleted: true,
+            ipAddress: clientIp,
+            ipHistory: [{ ip: clientIp, timestamp: new Date() }]
         });
 
         await user.save();
@@ -269,12 +309,7 @@ router.post('/register', async (req, res) => {
             preferences: user.preferences,
             onboardingCompleted: user.onboardingCompleted,
             avatar: user.avatar,
-            email: user.email,
-            accountType: user.accountType,
-            experienceLevel: user.experienceLevel,
-            // Virtual fields
-            fullName: user.firstName + (user.lastName ? ' ' + user.lastName : ''),
-            age: user.birthDate ? Math.floor((new Date() - new Date(user.birthDate)) / (365.25 * 24 * 60 * 60 * 1000)) : null
+            ipAddress: user.ipAddress
         };
 
         res.status(201).json({
@@ -353,6 +388,17 @@ router.put('/profile', async (req, res) => {
             });
         }
 
+        // IP manzilini yangilash
+        const clientIp = getClientIp(req);
+        user.ipAddress = clientIp;
+        user.ipHistory.push({
+            ip: clientIp,
+            timestamp: new Date()
+        });
+        if (user.ipHistory.length > 50) {
+            user.ipHistory = user.ipHistory.slice(-50);
+        }
+
         // Username tekshirish (agar o'zgartirilgan bo'lsa)
         if (username !== undefined && username !== user.username) {
             // Username bandligini tekshirish
@@ -389,7 +435,7 @@ router.put('/profile', async (req, res) => {
         if (region !== undefined) user.region = region;
         if (bio !== undefined) user.bio = bio;
 
-        // AVATAR NI HAR DOIM YANGILASH - asosiy tuzatish
+        // AVATAR NI HAR DOIM YANGILASH
         if (avatar !== undefined) {
             user.avatar = avatar;
             console.log('Avatar updated to:', avatar);
@@ -427,7 +473,8 @@ router.put('/profile', async (req, res) => {
             lastActive: user.lastActive,
             preferences: user.preferences,
             onboardingCompleted: user.onboardingCompleted,
-            avatar: user.avatar
+            avatar: user.avatar,
+            ipAddress: user.ipAddress
         };
 
         res.json({
@@ -472,7 +519,7 @@ router.put('/profile', async (req, res) => {
     }
 });
 
-// Yangi /refresh-token endpoint
+// /refresh-token endpoint
 router.post('/refresh-token', async (req, res) => {
     try {
         const { telegramId } = req.body;
@@ -496,6 +543,17 @@ router.post('/refresh-token', async (req, res) => {
             });
         }
 
+        // IP manzilini yangilash
+        const clientIp = getClientIp(req);
+        user.ipAddress = clientIp;
+        user.ipHistory.push({
+            ip: clientIp,
+            timestamp: new Date()
+        });
+        if (user.ipHistory.length > 50) {
+            user.ipHistory = user.ipHistory.slice(-50);
+        }
+
         // Yangi JWT token generatsiya qilish
         const token = jwt.sign(
             { userId: user._id },
@@ -515,8 +573,11 @@ router.post('/refresh-token', async (req, res) => {
             region: user.region,
             birthDate: user.birthDate,
             bio: user.bio,
-            avatar: user.avatar
+            avatar: user.avatar,
+            ipAddress: user.ipAddress
         };
+
+        await user.save();
 
         // Javobni qaytarish
         res.json({
