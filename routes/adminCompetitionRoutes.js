@@ -4,21 +4,14 @@ const Competition = require('../models/Competition');
 const Quiz = require('../models/Quiz');
 const adminAuth = require('../middleware/adminAuth');
 
-// ✅ Validation middleware
+// ✅ Soddalashtirilgan validation middleware
 const validateCompetition = (req, res, next) => {
-    const {
-        name,
-        startDate,
-        endDate,
-        maxParticipants,
-        entryFee,
-        prizePool
-    } = req.body;
+    const { name, startDate, endDate, prizePool } = req.body;
 
     if (!name || !startDate || !endDate) {
         return res.status(400).json({
             success: false,
-            message: 'Name, startDate va endDate majburiy maydonlar'
+            message: 'Musobaqa nomi, boshlanish va tugash sanalari majburiy'
         });
     }
 
@@ -29,44 +22,35 @@ const validateCompetition = (req, res, next) => {
         });
     }
 
-    if (maxParticipants && maxParticipants < 1) {
-        return res.status(400).json({
-            success: false,
-            message: 'Maksimal ishtirokchilar soni 1 dan katta bo\'lishi kerak'
-        });
-    }
-
-    if (entryFee && entryFee < 0) {
-        return res.status(400).json({
-            success: false,
-            message: 'Kirish to\'lovi manfiy bo\'lmasligi kerak'
-        });
-    }
-
     if (prizePool && prizePool < 0) {
         return res.status(400).json({
             success: false,
-            message: 'Mukofot jamg\'armasi manfiy bo\'lmasligi kerak'
+            message: 'Yutuq jamg\'armasi manfiy bo\'lmasligi kerak'
         });
     }
 
     next();
 };
 
-// ✅ Yangi competition yaratish
+// ✅ Yangi competition yaratish (Soddalashtirilgan)
 router.post('/', adminAuth, validateCompetition, async (req, res) => {
     try {
-        const competitionData = {
-            ...req.body,
-            createdBy: req.admin._id
-        };
+        const { name, description, startDate, endDate, prizePool } = req.body;
 
-        const competition = new Competition(competitionData);
+        const competition = new Competition({
+            name,
+            description: description || '',
+            startDate,
+            endDate,
+            prizePool: prizePool || 0,
+            createdBy: req.admin._id
+        });
+
         await competition.save();
 
         res.status(201).json({
             success: true,
-            message: 'Competition muvaffaqiyatli yaratildi',
+            message: 'Musobaqa muvaffaqiyatli yaratildi',
             competition
         });
 
@@ -86,9 +70,7 @@ router.get('/', adminAuth, async (req, res) => {
             page = 1,
             limit = 10,
             search = '',
-            status = '',
-            difficulty = '',
-            category = ''
+            status = ''
         } = req.query;
 
         const query = {};
@@ -115,23 +97,13 @@ router.get('/', adminAuth, async (req, res) => {
             }
         }
 
-        // Difficulty filter
-        if (difficulty) {
-            query.difficulty = difficulty;
-        }
-
-        // Category filter
-        if (category) {
-            query.categories = { $in: [category] };
-        }
-
         const options = {
             page: parseInt(page),
             limit: parseInt(limit),
             sort: { createdAt: -1 },
             populate: [
                 { path: 'createdBy', select: 'username' },
-                { path: 'quizzes.quizId', select: 'title totalQuestions' }
+                { path: 'quizzes.quizId', select: 'title' }
             ]
         };
 
@@ -159,9 +131,7 @@ router.get('/:id', adminAuth, async (req, res) => {
     try {
         const competition = await Competition.findById(req.params.id)
             .populate('quizzes.quizId')
-            .populate('createdBy', 'username')
-            .populate('winners.userId', 'username email')
-            .populate('leaderboard.userId', 'username email');
+            .populate('createdBy', 'username');
 
         if (!competition) {
             return res.status(404).json({
@@ -187,6 +157,8 @@ router.get('/:id', adminAuth, async (req, res) => {
 // ✅ Competitionni yangilash
 router.put('/:id', adminAuth, validateCompetition, async (req, res) => {
     try {
+        const { name, description, startDate, endDate, prizePool } = req.body;
+
         const competition = await Competition.findById(req.params.id);
 
         if (!competition) {
@@ -196,29 +168,18 @@ router.put('/:id', adminAuth, validateCompetition, async (req, res) => {
             });
         }
 
-        // Competition boshlangan bo'lsa, ba'zi maydonlarni yangilashni cheklash
-        if (competition.isActive) {
-            const allowedUpdates = ['description', 'rules', 'isPublished'];
-            const attemptedUpdates = Object.keys(req.body);
+        // Faqat asosiy maydonlarni yangilash
+        competition.name = name;
+        competition.description = description || '';
+        competition.startDate = startDate;
+        competition.endDate = endDate;
+        competition.prizePool = prizePool || 0;
 
-            const invalidUpdates = attemptedUpdates.filter(
-                field => !allowedUpdates.includes(field)
-            );
-
-            if (invalidUpdates.length > 0) {
-                return res.status(400).json({
-                    success: false,
-                    message: `Active competitionda faqat quyidagi maydonlarni yangilash mumkin: ${allowedUpdates.join(', ')}`
-                });
-            }
-        }
-
-        Object.assign(competition, req.body);
         await competition.save();
 
         res.json({
             success: true,
-            message: 'Competition yangilandi',
+            message: 'Musobaqa yangilandi',
             competition
         });
 
@@ -243,28 +204,17 @@ router.delete('/:id', adminAuth, async (req, res) => {
             });
         }
 
-        // Competition boshlangan bo'lsa, o'chirishni cheklash
-        if (competition.isActive) {
-            return res.status(400).json({
-                success: false,
-                message: 'Active competitionni o\'chirib bo\'lmaydi'
-            });
-        }
-
         await Competition.findByIdAndDelete(req.params.id);
 
-        // Quizlarni competitiondan ajratish (o'chirmaslik)
+        // Quizlarni competitiondan ajratish
         await Quiz.updateMany(
             { competitionId: req.params.id },
-            {
-                competitionId: null,
-                isCompetitionQuiz: false
-            }
+            { competitionId: null }
         );
 
         res.json({
             success: true,
-            message: 'Competition muvaffaqiyatli o\'chirildi'
+            message: 'Musobaqa muvaffaqiyatli o\'chirildi'
         });
 
     } catch (error) {
@@ -309,88 +259,35 @@ router.post('/:id/quizzes', adminAuth, async (req, res) => {
         const addedQuizzes = [];
         for (const quiz of quizzes) {
             const alreadyAdded = competition.quizzes.some(
-                q => q.quizId.toString() === quiz._id.toString()
+                q => q.quizId && q.quizId.toString() === quiz._id.toString()
             );
 
             if (!alreadyAdded) {
                 // Quizni competitionga bog'lash
                 quiz.competitionId = competition._id;
-                quiz.isCompetitionQuiz = true;
                 await quiz.save();
 
                 // Competitionga quiz qo'shish
                 competition.quizzes.push({
                     quizId: quiz._id,
                     title: quiz.title,
-                    description: quiz.description,
                     order: competition.quizzes.length + 1
                 });
 
-                addedQuizzes.push({
-                    id: quiz._id,
-                    title: quiz.title
-                });
+                addedQuizzes.push(quiz.title);
             }
         }
 
         await competition.save();
-        const updatedCompetition = await Competition.findById(req.params.id).populate('quizzes.quizId');
 
         res.json({
             success: true,
-            message: `${addedQuizzes.length} ta quiz competitionga qo'shildi`,
-            addedQuizzes,
-            competition: updatedCompetition
+            message: `${addedQuizzes.length} ta quiz musobaqaga qo'shildi`,
+            addedQuizzes
         });
 
     } catch (error) {
         console.error('Quiz qo\'shish xatosi:', error);
-        res.status(500).json({
-            success: false,
-            message: 'Server xatosi'
-        });
-    }
-});
-
-// ✅ Competitiondan quiz olib tashlash
-router.delete('/:id/quizzes/:quizId', adminAuth, async (req, res) => {
-    try {
-        const competition = await Competition.findById(req.params.id);
-        if (!competition) {
-            return res.status(404).json({
-                success: false,
-                message: 'Competition topilmadi'
-            });
-        }
-
-        // Quizni competition ro'yxatidan olib tashlash
-        const initialLength = competition.quizzes.length;
-        competition.quizzes = competition.quizzes.filter(
-            q => q.quizId.toString() !== req.params.quizId
-        );
-
-        if (competition.quizzes.length === initialLength) {
-            return res.status(404).json({
-                success: false,
-                message: 'Quiz competitionda topilmadi'
-            });
-        }
-
-        await competition.save();
-
-        // Quizdan competitionId ni olib tashlash
-        await Quiz.findByIdAndUpdate(req.params.quizId, {
-            competitionId: null,
-            isCompetitionQuiz: false
-        });
-
-        res.json({
-            success: true,
-            message: 'Quiz competitiondan olib tashlandi'
-        });
-
-    } catch (error) {
-        console.error('Quiz olib tashlash xatosi:', error);
         res.status(500).json({
             success: false,
             message: 'Server xatosi'
@@ -418,74 +315,17 @@ router.patch('/:id/publish', adminAuth, async (req, res) => {
             });
         }
 
-        // Nashr qilishdan oldin tekshirishlar
-        if (isPublished) {
-            if (competition.quizzes.length === 0) {
-                return res.status(400).json({
-                    success: false,
-                    message: 'Competitionda hech qanday quiz yo\'q'
-                });
-            }
-
-            if (new Date() > competition.endDate) {
-                return res.status(400).json({
-                    success: false,
-                    message: 'Muddati o\'tgan competitionni nashr qilib bo\'lmaydi'
-                });
-            }
-        }
-
         competition.isPublished = isPublished;
         await competition.save();
 
         res.json({
             success: true,
-            message: isPublished ? 'Competition nashr qilindi' : 'Competition nashrdan olindi',
+            message: isPublished ? 'Musobaqa nashr qilindi' : 'Musobaqa nashrdan olindi',
             competition
         });
 
     } catch (error) {
         console.error('Competition nashr qilish xatosi:', error);
-        res.status(500).json({
-            success: false,
-            message: 'Server xatosi'
-        });
-    }
-});
-
-// ✅ Competition statistikasini olish
-router.get('/:id/stats', adminAuth, async (req, res) => {
-    try {
-        const competition = await Competition.findById(req.params.id)
-            .populate('leaderboard.userId', 'username email')
-            .populate('winners.userId', 'username email');
-
-        if (!competition) {
-            return res.status(404).json({
-                success: false,
-                message: 'Competition topilmadi'
-            });
-        }
-
-        const stats = {
-            totalParticipants: competition.totalParticipants,
-            maxParticipants: competition.maxParticipants,
-            participationRate: ((competition.totalParticipants / competition.maxParticipants) * 100).toFixed(2),
-            totalQuizzes: competition.quizzes.length,
-            activeQuizzes: competition.quizzes.filter(q => q.isActive).length,
-            prizePool: competition.prizePool,
-            entryFee: competition.entryFee,
-            status: competition.isActive ? 'Active' : competition.isPublished ? 'Published' : 'Draft',
-            daysRemaining: Math.max(0, Math.ceil((competition.endDate - new Date()) / (1000 * 60 * 60 * 24)))
-        };
-
-        res.json({
-            success: true,
-            stats
-        });
-
-    } catch (error) {
-        console.error('Statistika olish xatosi:', error);
         res.status(500).json({
             success: false,
             message: 'Server xatosi'
