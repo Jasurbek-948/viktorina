@@ -21,7 +21,7 @@ const attemptSchema = new mongoose.Schema({
         questionIndex: Number,
         selectedOption: Number,
         isCorrect: Boolean,
-        timeSpent: Number, // seconds
+        timeSpent: Number,
         pointsEarned: Number
     }],
     totalCorrect: {

@@ -87,7 +87,7 @@ const quizSchema = new mongoose.Schema({
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Competition'
     },
-    attempts: { 
+    attempts: {
         type: Number,
         default: 0
     },

@@ -1,10 +1,9 @@
-// routes/auth.js
 const express = require('express');
 const router = express.Router();
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 
-// Yangilangan /me endpoint
+// /me endpoint
 router.get('/me', async (req, res) => {
     try {
         const token = req.header('Authorization')?.replace('Bearer ', '');
@@ -96,6 +95,7 @@ router.get('/me', async (req, res) => {
     }
 });
 
+// /check/:telegramId endpoint
 router.get('/check/:telegramId', async (req, res) => {
     try {
         const { telegramId } = req.params;
@@ -141,6 +141,7 @@ router.get('/check/:telegramId', async (req, res) => {
     }
 });
 
+// /register endpoint
 router.post('/register', async (req, res) => {
     try {
         const {
@@ -241,8 +242,8 @@ router.post('/register', async (req, res) => {
             telegramId: user.telegramId,
             firstName: user.firstName,
             lastName: user.lastName,
-            name: user.firstName + (user.lastName ? ' ' + user.lastName : ''),
             username: user.username,
+            name: user.firstName + (user.lastName ? ' ' + user.lastName : ''),
             phone: user.phone,
             region: user.region,
             birthDate: user.birthDate,
@@ -315,7 +316,7 @@ router.post('/register', async (req, res) => {
     }
 });
 
-// Yangilangan profile update endpoint
+// /profile endpoint
 router.put('/profile', async (req, res) => {
     try {
         const {
@@ -426,7 +427,7 @@ router.put('/profile', async (req, res) => {
             lastActive: user.lastActive,
             preferences: user.preferences,
             onboardingCompleted: user.onboardingCompleted,
-            avatar: user.avatar // Yangilangan avatar ni qaytarish
+            avatar: user.avatar
         };
 
         res.json({
@@ -470,4 +471,70 @@ router.put('/profile', async (req, res) => {
         });
     }
 });
+
+// Yangi /refresh-token endpoint
+router.post('/refresh-token', async (req, res) => {
+    try {
+        const { telegramId } = req.body;
+
+        if (!telegramId) {
+            return res.status(400).json({
+                success: false,
+                error: 'Telegram ID is required',
+                code: 'MISSING_TELEGRAM_ID'
+            });
+        }
+
+        // Foydalanuvchini MongoDB dan qidirish
+        const user = await User.findOne({ telegramId: telegramId.toString() });
+
+        if (!user) {
+            return res.status(404).json({
+                success: false,
+                error: 'User not found',
+                code: 'USER_NOT_FOUND'
+            });
+        }
+
+        // Yangi JWT token generatsiya qilish
+        const token = jwt.sign(
+            { userId: user._id },
+            process.env.JWT_SECRET || 'quiz_app_fallback_secret_2024',
+            { expiresIn: '30d' }
+        );
+
+        // Foydalanuvchi ma'lumotlarini tayyorlash
+        const userResponse = {
+            id: user._id,
+            telegramId: user.telegramId,
+            firstName: user.firstName,
+            lastName: user.lastName,
+            username: user.username,
+            name: user.firstName + (user.lastName ? ' ' + user.lastName : ''),
+            phone: user.phone,
+            region: user.region,
+            birthDate: user.birthDate,
+            bio: user.bio,
+            avatar: user.avatar
+        };
+
+        // Javobni qaytarish
+        res.json({
+            success: true,
+            message: 'Token refreshed successfully',
+            token,
+            user: userResponse
+        });
+
+    } catch (error) {
+        console.error('Refresh token error:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Internal server error',
+            code: 'SERVER_ERROR',
+            details: process.env.NODE_ENV === 'development' ? error.message : undefined
+        });
+    }
+});
+
 module.exports = router;
