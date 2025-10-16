@@ -111,24 +111,24 @@ app.get('/health', (req, res) => {
 });
 
 // ✅ 9. Routes
-app.use('/api/auth', require('./routes/auth'));
-app.use('/api/quiz', require('./routes/quiz'));
-app.use('/api/competition', require('./routes/competition'));
-app.use('/api/user', require('./routes/user'));
-app.use('/api/leaderboard', require('./routes/leaderboard'));
-app.use('/api/telegram', require('./routes/telegram'));
-app.use('/api/referral', require('./routes/referral'));
-app.use('/api/admin', require('./routes/admin'));
+app.use('/api/auth', require('../routes/auth'));
+app.use('/api/quiz', require('../routes/quiz'));
+app.use('/api/competition', require('../routes/competition'));
+app.use('/api/user', require('../routes/user'));
+app.use('/api/leaderboard', require('../routes/leaderboard'));
+app.use('/api/telegram', require('../routes/telegram'));
+app.use('/api/referral', require('../routes/referral'));
+app.use('/api/admin', require('../routes/admin'));
 
 // ✅ 10. Admin routes - alohida CORS bilan
-app.use('/api/admin/competitions', require('./routes/adminCompetitionRoutes'));
-app.use('/api/admin/quizzes', require('./routes/adminQuizRoutes'));
-app.use('/api/admin/users', require('./routes/adminUserRoutes'));
-app.use('/api/admin/stats', require('./routes/adminStatsRoutes'));
-app.use('/api/admin/auth', require('./routes/adminAuth'));
+app.use('/api/admin/competitions', require('../routes/adminCompetitionRoutes'));
+app.use('/api/admin/quizzes', require('../routes/adminQuizRoutes'));
+app.use('/api/admin/users', require('../routes/adminUserRoutes'));
+app.use('/api/admin/stats', require('../routes/adminStatsRoutes'));
+app.use('/api/admin/auth', require('../routes/adminAuth'));
 
 // ✅ 11. Error handling
-app.use(require('./middleware/errorHandler'));
+app.use(require('../middleware/errorHandler'));
 
 // ✅ 12. 404 handler
 app.use('*', (req, res) => {
