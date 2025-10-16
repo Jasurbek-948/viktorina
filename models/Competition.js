@@ -1,3 +1,4 @@
+// models/Competition.js
 const mongoose = require('mongoose');
 
 const competitionSchema = new mongoose.Schema({
@@ -60,7 +61,6 @@ const competitionSchema = new mongoose.Schema({
         enum: ['easy', 'medium', 'hard'],
         default: 'medium'
     },
-    // 🔥 O'ZGARISH: dailyQuizzes o'rniga quizzes
     quizzes: [{
         quizId: {
             type: mongoose.Schema.Types.ObjectId,

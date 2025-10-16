@@ -32,6 +32,7 @@ const adminAuth = async (req, res, next) => {
         req.admin = admin;
         next();
     } catch (error) {
+        console.error('Admin auth xatosi:', error);
         res.status(401).json({
             success: false,
             message: 'Token yaroqsiz'

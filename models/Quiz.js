@@ -1,3 +1,4 @@
+// models/Quiz.js
 const mongoose = require('mongoose');
 
 const questionSchema = new mongoose.Schema({
@@ -6,16 +7,19 @@ const questionSchema = new mongoose.Schema({
         required: true,
         trim: true
     },
-    options: [{
-        text: {
-            type: String,
-            required: true
-        },
-        isCorrect: {
-            type: Boolean,
-            default: false
-        }
-    }],
+    options: {
+        type: [{
+            text: {
+                type: String,
+                required: true
+            },
+            isCorrect: {
+                type: Boolean,
+                default: false
+            }
+        }],
+        default: []
+    },
     explanation: {
         type: String,
         trim: true
@@ -48,7 +52,10 @@ const quizSchema = new mongoose.Schema({
         type: String,
         trim: true
     },
-    questions: [questionSchema],
+    questions: {
+        type: [questionSchema],
+        default: []
+    },
     category: {
         type: String,
         required: true
@@ -78,7 +85,6 @@ const quizSchema = new mongoose.Schema({
         type: Boolean,
         default: false
     },
-    // 🔥 YANGI: Competition bilan bog'lash
     competitionId: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Competition'
@@ -99,18 +105,22 @@ const quizSchema = new mongoose.Schema({
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Admin'
     },
-    tags: [String]
+    tags: {
+        type: [String],
+        default: []
+    }
 }, {
     timestamps: true
 });
 
+// Pre-save hook
 quizSchema.pre('save', function (next) {
-    this.totalQuestions = this.questions?.length || 0;
-    this.totalPoints = this.questions?.reduce((sum, question) => {
-        return sum + (question.points || 10);
-    }, 0) || 0;
+    // To'g'rilangan: questions ni tekshirish va default array qilish
+    this.questions = this.questions || [];
 
-    // Agar competitionId bo'lsa, competition quiz ekanligini belgilash
+    this.totalQuestions = this.questions.length || 0;
+    this.totalPoints = this.questions.reduce((sum, question) => sum + (question.points || 10), 0) || 0;
+
     if (this.competitionId) {
         this.isCompetitionQuiz = true;
     }

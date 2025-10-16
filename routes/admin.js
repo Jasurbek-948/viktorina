@@ -1,4 +1,4 @@
-// routes/admin.js
+// routes/admin.js (Updated with new route for single user)
 const express = require('express');
 const router = express.Router();
 const Quiz = require('../models/Quiz');
@@ -7,112 +7,190 @@ const User = require('../models/User');
 const auth = require('../middleware/auth');
 const adminAuth = require('../middleware/adminAuth');
 const QuizAttempt = require('../models/QuizAttempt');
+
 // Admin dashboard stats
 router.get('/dashboard', adminAuth, async (req, res) => {
     try {
         console.log('Dashboard stats so\'rovi qabul qilindi');
 
-        // Asosiy statistika
-        const totalUsers = await User.countDocuments();
-        const activeUsers = await User.countDocuments({ isActive: true });
-        const totalQuizzes = await Quiz.countDocuments();
-        const activeQuizzes = await Quiz.countDocuments({ isActive: true });
-        const totalCompetitions = await Competition.countDocuments();
-        const activeCompetitions = await Competition.countDocuments({ isActive: true });
+        // Natija obyekti
+        const stats = {};
+        let recentUsers = [];
+        let topUsers = [];
+        let activeCompetitionsList = [];
 
-        console.log('Asosiy statistika yig\'ildi');
+        // Asosiy statistika
+        try {
+            const totalUsers = await User.countDocuments();
+            stats.totalUsers = totalUsers;
+        } catch (err) {
+            console.error('Foydalanuvchilar sonini olishda xato:', err.message);
+            stats.totalUsers = 0; // Default qiymat
+        }
+
+        try {
+            const activeUsers = await User.countDocuments({ isActive: true });
+            stats.activeUsers = activeUsers;
+        } catch (err) {
+            console.error('Faol foydalanuvchilar sonini olishda xato:', err.message);
+            stats.activeUsers = 0;
+        }
+
+        try {
+            const totalQuizzes = await Quiz.countDocuments();
+            stats.totalQuizzes = totalQuizzes;
+        } catch (err) {
+            console.error('Quizlar sonini olishda xato:', err.message);
+            stats.totalQuizzes = 0;
+        }
+
+        try {
+            const activeQuizzes = await Quiz.countDocuments({ isActive: true });
+            stats.activeQuizzes = activeQuizzes;
+        } catch (err) {
+            console.error('Faol quizlar sonini olishda xato:', err.message);
+            stats.activeQuizzes = 0;
+        }
+
+        try {
+            const totalCompetitions = await Competition.countDocuments();
+            stats.totalCompetitions = totalCompetitions;
+        } catch (err) {
+            console.error('Musobaqalar sonini olishda xato:', err.message);
+            stats.totalCompetitions = 0;
+        }
+
+        try {
+            const activeCompetitions = await Competition.countDocuments({ isActive: true });
+            stats.activeCompetitions = activeCompetitions;
+        } catch (err) {
+            console.error('Faol musobaqalar sonini olishda xato:', err.message);
+            stats.activeCompetitions = 0;
+        }
+
+        console.log('Asosiy statistika yig\'ildi:', stats);
 
         // Bugungi statistika
         const today = new Date();
         today.setHours(0, 0, 0, 0);
 
-        const newUsersToday = await User.countDocuments({
-            createdAt: { $gte: today }
-        });
-
-        // QuizAttempt mavjudligini tekshirish
-        let quizAttemptsToday = 0;
-        let quizAttemptsThisWeek = 0;
-
-        // QuizAttempt modeli mavjudligini tekshirish
         try {
-            // Dynamic import yoki model mavjudligini tekshirish
-            const QuizAttempt = require('../models/QuizAttempt');
-            quizAttemptsToday = await QuizAttempt.countDocuments({
+            const newUsersToday = await User.countDocuments({
                 createdAt: { $gte: today }
             });
-
-            // Haftalik o'sish
-            const oneWeekAgo = new Date();
-            oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
-
-            quizAttemptsThisWeek = await QuizAttempt.countDocuments({
-                createdAt: { $gte: oneWeekAgo }
-            });
-        } catch (error) {
-            console.log('QuizAttempt modeli mavjud emas, default qiymatlar ishlatilmoqda:', error.message);
-            // Default qiymatlar
-            quizAttemptsToday = 15;
-            quizAttemptsThisWeek = 120;
+            stats.newUsersToday = newUsersToday;
+        } catch (err) {
+            console.error('Bugungi yangi foydalanuvchilar sonini olishda xato:', err.message);
+            stats.newUsersToday = 0;
         }
 
+        // QuizAttempt statistikasi
         const oneWeekAgo = new Date();
         oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
 
-        const newUsersThisWeek = await User.countDocuments({
-            createdAt: { $gte: oneWeekAgo }
-        });
+        if (QuizAttempt) {
+            try {
+                const quizAttemptsToday = await QuizAttempt.countDocuments({
+                    createdAt: { $gte: today }
+                });
+                stats.quizAttemptsToday = quizAttemptsToday;
+            } catch (err) {
+                console.error('Bugungi quiz urinmalarini olishda xato:', err.message);
+                stats.quizAttemptsToday = 0;
+            }
+
+            try {
+                const quizAttemptsThisWeek = await QuizAttempt.countDocuments({
+                    createdAt: { $gte: oneWeekAgo }
+                });
+                stats.quizAttemptsThisWeek = quizAttemptsThisWeek;
+            } catch (err) {
+                console.error('Haftalik quiz urinmalarini olishda xato:', err.message);
+                stats.quizAttemptsThisWeek = 0;
+            }
+        } else {
+            console.log('QuizAttempt modeli mavjud emas, default qiymatlar ishlatilmoqda');
+            stats.quizAttemptsToday = 15;
+            stats.quizAttemptsThisWeek = 120;
+        }
+
+        try {
+            const newUsersThisWeek = await User.countDocuments({
+                createdAt: { $gte: oneWeekAgo }
+            });
+            stats.newUsersThisWeek = newUsersThisWeek;
+        } catch (err) {
+            console.error('Haftalik yangi foydalanuvchilar sonini olishda xato:', err.message);
+            stats.newUsersThisWeek = 0;
+        }
 
         // So'nggi foydalanuvchilar
-        const recentUsers = await User.find()
-            .sort({ createdAt: -1 })
-            .limit(5)
-            .select('firstName lastName username createdAt totalPoints');
+        try {
+            recentUsers = await User.find()
+                .sort({ createdAt: -1 })
+                .limit(5)
+                .select('firstName lastName username createdAt totalPoints')
+                .lean(); // JSON ga o'tkazishni osonlashtirish uchun lean() ishlatamiz
+        } catch (err) {
+            console.error('So\'nggi foydalanuvchilarni olishda xato:', err.message);
+            recentUsers = [];
+        }
 
         // Top foydalanuvchilar
-        const topUsers = await User.find()
-            .sort({ totalPoints: -1 })
-            .limit(5)
-            .select('firstName lastName username totalPoints rank');
+        try {
+            topUsers = await User.find()
+                .sort({ totalPoints: -1 })
+                .limit(5)
+                .select('firstName lastName username totalPoints rank')
+                .lean();
+        } catch (err) {
+            console.error('Top foydalanuvchilarni olishda xato:', err.message);
+            topUsers = [];
+        }
 
         // Aktiv musobaqalar
-        const activeCompetitionsList = await Competition.find({ isActive: true })
-            .sort({ startDate: -1 })
-            .limit(3)
-            .select('name startDate endDate totalParticipants');
+        try {
+            activeCompetitionsList = await Competition.find({ isActive: true })
+                .sort({ startDate: -1 })
+                .limit(3)
+                .select('name startDate endDate totalParticipants')
+                .lean();
+        } catch (err) {
+            console.error('Faol musobaqalarni olishda xato:', err.message);
+            activeCompetitionsList = [];
+        }
 
-        console.log('Barcha ma\'lumotlar yig\'ildi');
+        console.log('Barcha ma\'lumotlar yig\'ildi:', {
+            stats,
+            recentUsers,
+            topUsers,
+            activeCompetitionsList
+        });
 
+        // Faqat mavjud ma'lumotlarni qaytarish
         res.json({
             success: true,
-            stats: {
-                totalUsers,
-                activeUsers,
-                totalQuizzes,
-                activeQuizzes,
-                totalCompetitions,
-                activeCompetitions,
-                newUsersToday,
-                quizAttemptsToday,
-                newUsersThisWeek,
-                quizAttemptsThisWeek
-            },
-            recentUsers: recentUsers || [],
-            topUsers: topUsers || [],
-            activeCompetitions: activeCompetitionsList || []
+            stats,
+            recentUsers,
+            topUsers,
+            activeCompetitions: activeCompetitionsList
         });
 
     } catch (error) {
-        console.error('Dashboard stats error:', error);
+        // Global xatolik (masalan, middleware yoki DB ulanishi bilan bog'liq)
+        console.error('Dashboard stats xatosi:', error);
         res.status(500).json({
             success: false,
             error: error.message,
-            message: 'Dashboard ma\'lumotlarini yig\'ishda xatolik'
+            message: 'Dashboard ma\'lumotlarini yig\'ishda xatolik',
+            stats: {},
+            recentUsers: [],
+            topUsers: [],
+            activeCompetitions: []
         });
     }
 });
 
-module.exports = router;
 // Create new quiz
 router.post('/quizzes', adminAuth, async (req, res) => {
     try {
@@ -124,7 +202,7 @@ router.post('/quizzes', adminAuth, async (req, res) => {
             difficulty,
             timeLimit,
             isDaily,
-            isCompetition,
+            isCompetitionQuiz,  // To'g'rilangan: isCompetitionQuiz ga o'zgartirildi
             competitionId
         } = req.body;
 
@@ -136,7 +214,7 @@ router.post('/quizzes', adminAuth, async (req, res) => {
             difficulty,
             timeLimit,
             isDaily,
-            isCompetition,
+            isCompetitionQuiz,  // To'g'rilangan
             competitionId,
             createdBy: req.user.id
         });
@@ -203,7 +281,7 @@ router.patch('/competitions/:id/toggle', adminAuth, async (req, res) => {
 // Add daily quiz to competition
 router.post('/competitions/:id/daily-quiz', adminAuth, async (req, res) => {
     try {
-        const { quizId, date } = req.body;
+        const { quizId, date, title, description, order } = req.body;  // Qo'shimcha maydonlar qo'shildi
 
         const competition = await Competition.findById(req.params.id);
         if (!competition) {
@@ -215,9 +293,14 @@ router.post('/competitions/:id/daily-quiz', adminAuth, async (req, res) => {
             return res.status(404).json({ error: 'Quiz not found' });
         }
 
-        competition.dailyQuizzes.push({
-            date: date || new Date(),
-            quizId: quiz._id
+        // To'g'rilangan: quizzes ga push qilish (dailyQuizzes o'rniga)
+        competition.quizzes.push({
+            quizId: quiz._id,
+            title: title || quiz.title,
+            description: description || quiz.description,
+            order: order || competition.quizzes.length + 1,
+            addedAt: date || new Date(),
+            isActive: true
         });
 
         await competition.save();
@@ -250,6 +333,71 @@ router.get('/users', adminAuth, async (req, res) => {
                 total,
                 pages: Math.ceil(total / limit)
             }
+        });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// New route: Get single user details
+router.get('/users/:id', adminAuth, async (req, res) => {
+    try {
+        const user = await User.findById(req.params.id)
+            .populate('referredBy', 'firstName lastName username') // Populate referredBy if needed
+            .lean({ virtuals: true }); // Include virtual fields
+
+        if (!user) {
+            return res.status(404).json({ error: 'Foydalanuvchi topilmadi' });
+        }
+
+        res.json({
+            success: true,
+            user
+        });
+    } catch (error) {
+        console.error('Foydalanuvchi detallarini olishda xato:', error);
+        res.status(500).json({
+            success: false,
+            error: error.message,
+            message: 'Foydalanuvchi ma\'lumotlarini olishda xatolik'
+        });
+    }
+});
+
+// Additional routes if needed, e.g., update user
+router.put('/users/:id', adminAuth, async (req, res) => {
+    try {
+        const user = await User.findByIdAndUpdate(
+            req.params.id,
+            { $set: req.body },
+            { new: true, runValidators: true }
+        ).lean({ virtuals: true });
+
+        if (!user) {
+            return res.status(404).json({ error: 'Foydalanuvchi topilmadi' });
+        }
+
+        res.json({
+            success: true,
+            user
+        });
+    } catch (error) {
+        res.status(400).json({ error: error.message });
+    }
+});
+
+// Delete user
+router.delete('/users/:id', adminAuth, async (req, res) => {
+    try {
+        const user = await User.findByIdAndDelete(req.params.id);
+
+        if (!user) {
+            return res.status(404).json({ error: 'Foydalanuvchi topilmadi' });
+        }
+
+        res.json({
+            success: true,
+            message: 'Foydalanuvchi muvaffaqiyatli o\'chirildi'
         });
     } catch (error) {
         res.status(500).json({ error: error.message });

@@ -1,3 +1,4 @@
+// models/User.js
 const mongoose = require('mongoose');
 
 const userSchema = new mongoose.Schema({
@@ -10,7 +11,7 @@ const userSchema = new mongoose.Schema({
             validator: function (v) {
                 return /^\d+$/.test(v.toString());
             },
-            message: 'Telegram ID must contain only numbers'
+            message: 'Telegram ID faqat raqamlardan iborat bo\'lishi kerak'
         }
     },
     firstName: {
@@ -40,7 +41,7 @@ const userSchema = new mongoose.Schema({
                 if (!v) return true;
                 return /^\+?[1-9]\d{1,14}$/.test(v);
             },
-            message: 'Invalid phone number format'
+            message: 'Telefon raqami formati noto\'g\'ri'
         }
     },
     region: {
@@ -60,13 +61,13 @@ const userSchema = new mongoose.Schema({
                 const age = new Date().getFullYear() - new Date(v).getFullYear();
                 return age >= 13 && age <= 120;
             },
-            message: 'User must be between 13 and 120 years old'
+            message: 'Foydalanuvchi 13 va 120 yosh oralig\'ida bo\'lishi kerak'
         }
     },
     bio: {
         type: String,
         maxlength: 500,
-        default: 'Quiz enthusiast and knowledge seeker'
+        default: 'Quiz ishqibozi va bilim izlovchisi'
     },
     accountType: {
         type: String,
@@ -83,10 +84,10 @@ const userSchema = new mongoose.Schema({
         enum: ['daily', 'weekly', 'monthly', 'occasionally'],
         default: 'occasionally'
     },
-    interests: [{
-        type: String,
-        trim: true
-    }],
+    interests: {
+        type: [{ type: String, trim: true }],
+        default: []
+    },
     totalPoints: {
         type: Number,
         default: 0,
@@ -170,23 +171,26 @@ const userSchema = new mongoose.Schema({
         type: Number,
         default: 0
     },
-    subscribedChannels: [{
-        channelId: String,
-        channelUsername: String,
-        channelTitle: String,
-        subscribedAt: {
-            type: Date,
-            default: Date.now
-        },
-        pointsEarned: {
-            type: Number,
-            default: 0
-        },
-        isActive: {
-            type: Boolean,
-            default: true
-        }
-    }],
+    subscribedChannels: {
+        type: [{
+            channelId: String,
+            channelUsername: String,
+            channelTitle: String,
+            subscribedAt: {
+                type: Date,
+                default: Date.now
+            },
+            pointsEarned: {
+                type: Number,
+                default: 0
+            },
+            isActive: {
+                type: Boolean,
+                default: true
+            }
+        }],
+        default: []
+    },
     subscriptionPoints: {
         type: Number,
         default: 0
@@ -194,27 +198,33 @@ const userSchema = new mongoose.Schema({
     lastSubscriptionCheck: {
         type: Date
     },
-    rankHistory: [{
-        date: {
-            type: Date,
-            default: Date.now
-        },
-        rank: Number,
-        points: Number,
-        weeklyRank: Number,
-        monthlyRank: Number
-    }],
-    achievements: [{
-        achievementId: String,
-        name: String,
-        description: String,
-        earnedAt: {
-            type: Date,
-            default: Date.now
-        },
-        points: Number,
-        icon: String
-    }],
+    rankHistory: {
+        type: [{
+            date: {
+                type: Date,
+                default: Date.now
+            },
+            rank: Number,
+            points: Number,
+            weeklyRank: Number,
+            monthlyRank: Number
+        }],
+        default: []
+    },
+    achievements: {
+        type: [{
+            achievementId: String,
+            name: String,
+            description: String,
+            earnedAt: {
+                type: Date,
+                default: Date.now
+            },
+            points: Number,
+            icon: String
+        }],
+        default: []
+    },
     preferences: {
         notifications: {
             type: Boolean,
@@ -273,16 +283,19 @@ const userSchema = new mongoose.Schema({
         trim: true,
         default: ''
     },
-    ipHistory: [{
-        ip: {
-            type: String,
-            trim: true
-        },
-        timestamp: {
-            type: Date,
-            default: Date.now
-        }
-    }]
+    ipHistory: {
+        type: [{
+            ip: {
+                type: String,
+                trim: true
+            },
+            timestamp: {
+                type: Date,
+                default: Date.now
+            }
+        }],
+        default: []
+    }
 }, {
     timestamps: true,
     toJSON: {
@@ -296,7 +309,7 @@ const userSchema = new mongoose.Schema({
     }
 });
 
-// Virtuals va metodlar (o'zgarmagan holda qoldiriladi)
+// Virtual maydonlar
 userSchema.virtual('fullName').get(function () {
     return this.lastName ? `${this.firstName} ${this.lastName}` : this.firstName;
 });
@@ -307,7 +320,6 @@ userSchema.virtual('age').get(function () {
     const birthDate = new Date(this.birthDate);
     let age = today.getFullYear() - birthDate.getFullYear();
     const monthDiff = today.getMonth() - birthDate.getMonth();
-
     if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
         age--;
     }
@@ -315,17 +327,20 @@ userSchema.virtual('age').get(function () {
 });
 
 userSchema.virtual('totalAchievementPoints').get(function () {
-    return this.achievements.reduce((total, achievement) => total + (achievement.points || 0), 0);
+    // achievements undefined bo'lsa, bo'sh array sifatida qaytaradi
+    return (this.achievements || []).reduce((total, achievement) => total + (achievement.points || 0), 0);
 });
 
 userSchema.virtual('activeSubscriptions').get(function () {
-    return this.subscribedChannels.filter(sub => sub.isActive).length;
+    // subscribedChannels undefined bo'lsa, bo'sh array sifatida qaytaradi
+    return (this.subscribedChannels || []).filter(sub => sub.isActive).length;
 });
 
+// Metodlar
 userSchema.methods.calculateAccuracy = function () {
     if (this.totalQuestions === 0) return 0;
     const accuracy = (this.correctAnswers / this.totalQuestions) * 100;
-    return Math.round(accuracy * 100) / 100; // 2 xona aniqlik
+    return Math.round(accuracy * 100) / 100; // 2 kasr aniqligi
 };
 
 userSchema.methods.updateLevel = function () {
@@ -358,6 +373,7 @@ userSchema.methods.updateRank = async function () {
     this.rank = usersAbove + 1;
 
     if (oldRank !== this.rank) {
+        this.rankHistory = this.rankHistory || [];
         this.rankHistory.push({
             date: new Date(),
             rank: this.rank,
@@ -417,6 +433,7 @@ userSchema.methods.generateReferralCode = function () {
 };
 
 userSchema.methods.addChannelSubscription = function (channelId, channelUsername, channelTitle, points) {
+    this.subscribedChannels = this.subscribedChannels || [];
     const existingSubscription = this.subscribedChannels.find(
         sub => sub.channelId === channelId
     );
@@ -490,6 +507,7 @@ userSchema.statics.resetMonthlyPoints = async function () {
     );
 };
 
+// Pre-save hook
 userSchema.pre('save', function (next) {
     if (this.isModified('correctAnswers') || this.isModified('totalQuestions')) {
         this.accuracy = this.calculateAccuracy();
@@ -499,9 +517,17 @@ userSchema.pre('save', function (next) {
         this.updateLevel();
     }
 
+    // achievements va subscribedChannels ni default [] sifatida ta'minlash
+    this.achievements = this.achievements || [];
+    this.subscribedChannels = this.subscribedChannels || [];
+    this.rankHistory = this.rankHistory || [];
+    this.interests = this.interests || [];
+    this.ipHistory = this.ipHistory || [];
+
     next();
 });
 
+// Indekslar
 userSchema.index({ totalPoints: -1 });
 userSchema.index({ rank: 1 });
 userSchema.index({ referralCode: 1 });
