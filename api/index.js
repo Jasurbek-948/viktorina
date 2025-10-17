@@ -62,7 +62,8 @@ app.use(cors({
             'http://localhost:3002',
             'http://localhost:5173',
             'https://viktorina-utuu.vercel.app',
-            'https://viktorina-frontend.vercel.app'
+            'https://viktorina-frontend.vercel.app',
+            'https://publicly-living-bee.ngrok-free.app'
         ];
 
         // Agar origin yo'q bo'lsa (masalan, mobile app) yoki allowedOrigins da bo'lsa
