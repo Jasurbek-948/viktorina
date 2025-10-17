@@ -3,6 +3,7 @@ const router = express.Router();
 const Competition = require('../models/Competition');
 const { body, validationResult } = require('express-validator');
 const adminAuth = require('../middleware/adminAuth'); // Assuming adminAuth middleware is provided
+
 // Middleware to handle validation errors
 const validateRequest = (req, res, next) => {
     const errors = validationResult(req);
@@ -53,6 +54,41 @@ router.post(
         } catch (error) {
             console.error('Error creating competition:', error);
             res.status(500).json({ message: 'Server error while creating competition' });
+        }
+    }
+);
+
+// Get all competitions with pagination
+router.get(
+    '/',
+    adminAuth,
+    async (req, res) => {
+        try {
+            const page = parseInt(req.query.page) || 1; // Default to page 1
+            const limit = parseInt(req.query.limit) || 10; // Default to 10 items per page
+            const skip = (page - 1) * limit;
+
+            // Fetch competitions with pagination
+            const competitions = await Competition.find()
+                .skip(skip)
+                .limit(limit);
+
+            // Get total count for pagination metadata
+            const total = await Competition.countDocuments();
+
+            res.status(200).json({
+                message: 'Competitions retrieved successfully',
+                competitions,
+                pagination: {
+                    page,
+                    limit,
+                    total,
+                    totalPages: Math.ceil(total / limit),
+                },
+            });
+        } catch (error) {
+            console.error('Error retrieving competitions:', error);
+            res.status(500).json({ message: 'Server error while retrieving competitions' });
         }
     }
 );
