@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const Competition = require('../models/Competition');
-const adminAuth = require('../middleware/adminAuth'); // Correct import
+const adminAuth = require('../middleware/adminAuth');
 const { check, validationResult } = require('express-validator');
 
 // Validation rules for competition
@@ -10,11 +10,22 @@ const competitionValidation = [
         .trim()
         .notEmpty().withMessage('Competition nomi majburiy')
         .isLength({ max: 100 }).withMessage('Competition nomi 100 ta belgidan oshmasligi kerak'),
+    check('prizePool')
+        .optional()
+        .isFloat({ min: 0 }).withMessage('Mukofot jamg\'armasi manfiy bo\'lmasligi kerak')
+];
+
+// Validation rules for updating competition (includes optional startDate and endDate)
+const updateCompetitionValidation = [
+    check('name')
+        .trim()
+        .notEmpty().withMessage('Competition nomi majburiy')
+        .isLength({ max: 100 }).withMessage('Competition nomi 100 ta belgidan oshmasligi kerak'),
     check('startDate')
-        .notEmpty().withMessage('Boshlanish sanasi majburiy')
+        .optional()
         .isISO8601().toDate().withMessage('Yaroqli sana formati kiritilishi kerak'),
     check('endDate')
-        .notEmpty().withMessage('Tugash sanasi majburiy')
+        .optional()
         .isISO8601().toDate().withMessage('Yaroqli sana formati kiritilishi kerak'),
     check('prizePool')
         .optional()
@@ -32,16 +43,14 @@ router.post('/', adminAuth, competitionValidation, async (req, res) => {
             });
         }
 
-        const { name, description, startDate, endDate, prizePool, isPublished } = req.body;
+        const { name, description, prizePool, isPublished } = req.body;
 
         const competition = new Competition({
             name,
             description,
-            startDate,
-            endDate,
             prizePool,
             isPublished: isPublished || false,
-            createdBy: req.admin.id // Changed from req.user.id to req.admin.id
+            createdBy: req.admin.id
         });
 
         await competition.save();
@@ -130,7 +139,7 @@ router.get('/:id', adminAuth, async (req, res) => {
 });
 
 // Update competition
-router.put('/:id', adminAuth, competitionValidation, async (req, res) => {
+router.put('/:id', adminAuth, updateCompetitionValidation, async (req, res) => {
     try {
         const errors = validationResult(req);
         if (!errors.isEmpty()) {
@@ -152,8 +161,8 @@ router.put('/:id', adminAuth, competitionValidation, async (req, res) => {
 
         competition.name = name;
         competition.description = description;
-        competition.startDate = startDate;
-        competition.endDate = endDate;
+        if (startDate) competition.startDate = startDate;
+        if (endDate) competition.endDate = endDate;
         competition.prizePool = prizePool;
         competition.isPublished = isPublished;
 

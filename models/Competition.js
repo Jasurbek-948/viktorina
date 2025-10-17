@@ -15,18 +15,21 @@ const competitionSchema = new mongoose.Schema({
     },
     startDate: {
         type: Date,
-        required: [true, 'Boshlanish sanasi majburiy']
+        default: () => new Date() // Default to current date/time
     },
     endDate: {
         type: Date,
-        required: [true, 'Tugash sanasi majburiy']
+        default: () => {
+            const date = new Date();
+            date.setDate(date.getDate() + 10); // Default to 10 days from now
+            return date;
+        }
     },
     prizePool: {
         type: Number,
         default: 0,
         min: [0, 'Mukofot jamg\'armasi manfiy bo\'lmasligi kerak']
     },
-    // Faqat kerakli maydonlar qoldi
     isActive: {
         type: Boolean,
         default: false
