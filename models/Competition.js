@@ -15,13 +15,13 @@ const competitionSchema = new mongoose.Schema({
     },
     startDate: {
         type: Date,
-        default: () => new Date() // Default to current date/time
+        default: () => new Date()
     },
     endDate: {
         type: Date,
         default: () => {
             const date = new Date();
-            date.setDate(date.getDate() + 10); // Default to 10 days from now
+            date.setDate(date.getDate() + 10);
             return date;
         }
     },
