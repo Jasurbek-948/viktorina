@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const Competition = require('./Competition');
+const Competition = require('../models/Competition');
 const { body, validationResult } = require('express-validator');
 const adminAuth = require('../middleware/adminAuth'); // Assuming adminAuth middleware is provided
 // Middleware to handle validation errors
