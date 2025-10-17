@@ -1,11 +1,8 @@
 const express = require('express');
 const router = express.Router();
 const Competition = require('../models/Competition');
-const authMiddleware = require('../middleware/authMiddleware');
+const adminAuth = require('../middleware/adminAuth'); // Correct import
 const { check, validationResult } = require('express-validator');
-
-// Middleware to check if user is admin
-const isAdmin = authMiddleware.isAdmin;
 
 // Validation rules for competition
 const competitionValidation = [
@@ -25,7 +22,7 @@ const competitionValidation = [
 ];
 
 // Create new competition
-router.post('/', isAdmin, competitionValidation, async (req, res) => {
+router.post('/', adminAuth, competitionValidation, async (req, res) => {
     try {
         const errors = validationResult(req);
         if (!errors.isEmpty()) {
@@ -44,7 +41,7 @@ router.post('/', isAdmin, competitionValidation, async (req, res) => {
             endDate,
             prizePool,
             isPublished: isPublished || false,
-            createdBy: req.user.id
+            createdBy: req.admin.id // Changed from req.user.id to req.admin.id
         });
 
         await competition.save();
@@ -64,7 +61,7 @@ router.post('/', isAdmin, competitionValidation, async (req, res) => {
 });
 
 // Get all competitions
-router.get('/', isAdmin, async (req, res) => {
+router.get('/', adminAuth, async (req, res) => {
     try {
         const { page = 1, limit = 10, status } = req.query;
 
@@ -106,7 +103,7 @@ router.get('/', isAdmin, async (req, res) => {
 });
 
 // Get single competition
-router.get('/:id', isAdmin, async (req, res) => {
+router.get('/:id', adminAuth, async (req, res) => {
     try {
         const competition = await Competition.findById(req.params.id)
             .populate('createdBy', 'username')
@@ -133,7 +130,7 @@ router.get('/:id', isAdmin, async (req, res) => {
 });
 
 // Update competition
-router.put('/:id', isAdmin, competitionValidation, async (req, res) => {
+router.put('/:id', adminAuth, competitionValidation, async (req, res) => {
     try {
         const errors = validationResult(req);
         if (!errors.isEmpty()) {
@@ -177,7 +174,7 @@ router.put('/:id', isAdmin, competitionValidation, async (req, res) => {
 });
 
 // Delete competition
-router.delete('/:id', isAdmin, async (req, res) => {
+router.delete('/:id', adminAuth, async (req, res) => {
     try {
         const competition = await Competition.findById(req.params.id);
         if (!competition) {
@@ -203,7 +200,7 @@ router.delete('/:id', isAdmin, async (req, res) => {
 });
 
 // Add quiz to competition
-router.post('/:id/quizzes', isAdmin, [
+router.post('/:id/quizzes', adminAuth, [
     check('quizId')
         .notEmpty().withMessage('Quiz ID majburiy')
         .isMongoId().withMessage('Yaroqli Quiz ID kiritilishi kerak'),
@@ -265,7 +262,7 @@ router.post('/:id/quizzes', isAdmin, [
 });
 
 // Remove quiz from competition
-router.delete('/:id/quizzes/:quizId', isAdmin, async (req, res) => {
+router.delete('/:id/quizzes/:quizId', adminAuth, async (req, res) => {
     try {
         const competition = await Competition.findById(req.params.id);
         if (!competition) {
