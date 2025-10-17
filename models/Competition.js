@@ -1,88 +1,54 @@
 const mongoose = require('mongoose');
-const mongoosePaginate = require('mongoose-paginate-v2');
 
+// Define the Competition schema
 const competitionSchema = new mongoose.Schema({
     name: {
         type: String,
-        required: [true, 'Competition nomi majburiy'],
+        required: [true, 'Competition name is required'],
         trim: true,
-        maxlength: [100, 'Competition nomi 100 ta belgidan oshmasligi kerak']
+        minlength: [3, 'Competition name must be at least 3 characters long'],
+        maxlength: [100, 'Competition name cannot exceed 100 characters'],
     },
     description: {
         type: String,
+        required: [true, 'Competition description is required'],
         trim: true,
-        maxlength: [500, 'Tavsif 500 ta belgidan oshmasligi kerak']
+        minlength: [10, 'Description must be at least 10 characters long'],
+        maxlength: [1000, 'Description cannot exceed 1000 characters'],
     },
-    startDate: {
-        type: Date,
-        default: () => new Date()
+    maxParticipants: {
+        type: Number,
+        required: [true, 'Maximum number of participants is required'],
+        min: [1, 'Maximum participants must be at least 1'],
     },
-    endDate: {
-        type: Date,
-        default: () => {
-            const date = new Date();
-            date.setDate(date.getDate() + 10);
-            return date;
-        }
-    },
-    prizePool: {
+    currentParticipants: {
         type: Number,
         default: 0,
-        min: [0, 'Mukofot jamg\'armasi manfiy bo\'lmasligi kerak']
-    },
-    isActive: {
-        type: Boolean,
-        default: false
-    },
-    isPublished: {
-        type: Boolean,
-        default: false
-    },
-    totalParticipants: {
-        type: Number,
-        default: 0
-    },
-    quizzes: [{
-        quizId: {
-            type: mongoose.Schema.Types.ObjectId,
-            ref: 'Quiz'
+        min: [0, 'Current participants cannot be negative'],
+        validate: {
+            validator: function (value) {
+                return value <= this.maxParticipants;
+            },
+            message: 'Current participants cannot exceed maximum participants',
         },
-        title: String,
-        order: {
-            type: Number,
-            default: 1
-        }
-    }],
-    createdBy: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'Admin',
-        required: false,
-        default: 'uzwebcoder'
-    }
-}, {
-    timestamps: true
+    },
+    createdAt: {
+        type: Date,
+        default: Date.now,
+    },
+    updatedAt: {
+        type: Date,
+        default: Date.now,
+    },
 });
 
-// Pagination plugin
-competitionSchema.plugin(mongoosePaginate);
-
-// Indexes
-competitionSchema.index({ startDate: 1, endDate: 1 });
-competitionSchema.index({ isPublished: 1 });
-
-// Virtual for competition status
-competitionSchema.virtual('status').get(function () {
-    const now = new Date();
-    if (now < this.startDate) return 'upcoming';
-    if (now > this.endDate) return 'ended';
-    return 'active';
-});
-
-// Pre-save middleware for auto-updating isActive
+// Update `updatedAt` timestamp on save
 competitionSchema.pre('save', function (next) {
-    const now = new Date();
-    this.isActive = (now >= this.startDate && now <= this.endDate);
+    this.updatedAt = Date.now();
     next();
 });
 
-module.exports = mongoose.model('Competition', competitionSchema);
+// Create the Competition model
+const Competition = mongoose.model('Competition', competitionSchema);
+
+module.exports = Competition;

@@ -1,308 +1,133 @@
 const express = require('express');
 const router = express.Router();
-const Competition = require('../models/Competition');
-const adminAuth = require('../middleware/adminAuth');
-const { check, validationResult } = require('express-validator');
-
-// Validation rules for competition
-const competitionValidation = [
-    check('name')
-        .trim()
-        .notEmpty().withMessage('Competition nomi majburiy')
-        .isLength({ max: 100 }).withMessage('Competition nomi 100 ta belgidan oshmasligi kerak'),
-    check('prizePool')
-        .optional()
-        .isFloat({ min: 0 }).withMessage('Mukofot jamg\'armasi manfiy bo\'lmasligi kerak')
-];
-
-// Validation rules for updating competition (includes optional startDate and endDate)
-const updateCompetitionValidation = [
-    check('name')
-        .trim()
-        .notEmpty().withMessage('Competition nomi majburiy')
-        .isLength({ max: 100 }).withMessage('Competition nomi 100 ta belgidan oshmasligi kerak'),
-    check('startDate')
-        .optional()
-        .isISO8601().toDate().withMessage('Yaroqli sana formati kiritilishi kerak'),
-    check('endDate')
-        .optional()
-        .isISO8601().toDate().withMessage('Yaroqli sana formati kiritilishi kerak'),
-    check('prizePool')
-        .optional()
-        .isFloat({ min: 0 }).withMessage('Mukofot jamg\'armasi manfiy bo\'lmasligi kerak')
-];
-
-// Create new competition
-router.post('/', adminAuth, competitionValidation, async (req, res) => {
-    try {
-        const errors = validationResult(req);
-        if (!errors.isEmpty()) {
-            return res.status(400).json({
-                success: false,
-                errors: errors.array()
-            });
-        }
-
-        const { name, description, prizePool, isPublished } = req.body;
-
-        const competition = new Competition({
-            name,
-            description,
-            prizePool,
-            isPublished: isPublished || false,
-            createdBy: req.admin.id
-        });
-
-        await competition.save();
-
-        res.status(201).json({
-            success: true,
-            message: 'Musobaqa muvaffaqiyatli yaratildi',
-            competition
-        });
-    } catch (error) {
-        console.error('Competition creation error:', error);
-        res.status(500).json({
-            success: false,
-            message: 'Server xatosi'
-        });
+const Competition = require('./Competition');
+const { body, validationResult } = require('express-validator');
+const adminAuth = require('../middleware/adminAuth'); // Assuming adminAuth middleware is provided
+// Middleware to handle validation errors
+const validateRequest = (req, res, next) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+        return res.status(400).json({ errors: errors.array() });
     }
-});
+    next();
+};
 
-// Get all competitions
-router.get('/', adminAuth, async (req, res) => {
-    try {
-        const { page = 1, limit = 10, status } = req.query;
+// Create a new competition
+router.post(
+    '/',
+    adminAuth,
+    [
+        body('name')
+            .isString()
+            .trim()
+            .isLength({ min: 3, max: 100 })
+            .withMessage('Competition name must be between 3 and 100 characters'),
+        body('description')
+            .isString()
+            .trim()
+            .isLength({ min: 10, max: 1000 })
+            .withMessage('Description must be between 10 and 1000 characters'),
+        body('maxParticipants')
+            .isInt({ min: 1 })
+            .withMessage('Maximum participants must be at least 1'),
+    ],
+    validateRequest,
+    async (req, res) => {
+        try {
+            const { name, description, maxParticipants } = req.body;
 
-        const query = {};
-        const now = new Date();
+            // Check if competition with the same name already exists
+            const existingCompetition = await Competition.findOne({ name });
+            if (existingCompetition) {
+                return res.status(400).json({ message: 'Competition with this name already exists' });
+            }
 
-        if (status === 'upcoming') {
-            query.startDate = { $gt: now };
-        } else if (status === 'active') {
-            query.startDate = { $lte: now };
-            query.endDate = { $gte: now };
-        } else if (status === 'ended') {
-            query.endDate = { $lt: now };
-        }
-
-        const options = {
-            page: parseInt(page),
-            limit: parseInt(limit),
-            sort: { createdAt: -1 },
-            populate: { path: 'createdBy', select: 'username' }
-        };
-
-        const competitions = await Competition.paginate(query, options);
-
-        res.json({
-            success: true,
-            competitions: competitions.docs,
-            totalPages: competitions.totalPages,
-            currentPage: competitions.page,
-            totalItems: competitions.totalDocs
-        });
-    } catch (error) {
-        console.error('Get competitions error:', error);
-        res.status(500).json({
-            success: false,
-            message: 'Server xatosi'
-        });
-    }
-});
-
-// Get single competition
-router.get('/:id', adminAuth, async (req, res) => {
-    try {
-        const competition = await Competition.findById(req.params.id)
-            .populate('createdBy', 'username')
-            .populate('quizzes.quizId');
-
-        if (!competition) {
-            return res.status(404).json({
-                success: false,
-                message: 'Musobaqa topilmadi'
+            const competition = new Competition({
+                name,
+                description,
+                maxParticipants,
             });
-        }
 
-        res.json({
-            success: true,
-            competition
-        });
-    } catch (error) {
-        console.error('Get competition error:', error);
-        res.status(500).json({
-            success: false,
-            message: 'Server xatosi'
-        });
+            await competition.save();
+            res.status(201).json({ message: 'Competition created successfully', competition });
+        } catch (error) {
+            console.error('Error creating competition:', error);
+            res.status(500).json({ message: 'Server error while creating competition' });
+        }
     }
-});
+);
 
-// Update competition
-router.put('/:id', adminAuth, updateCompetitionValidation, async (req, res) => {
-    try {
-        const errors = validationResult(req);
-        if (!errors.isEmpty()) {
-            return res.status(400).json({
-                success: false,
-                errors: errors.array()
+// Update an existing competition
+router.put(
+    '/:id',
+    adminAuth,
+    [
+        body('name')
+            .optional()
+            .isString()
+            .trim()
+            .isLength({ min: 3, max: 100 })
+            .withMessage('Competition name must be between 3 and 100 characters'),
+        body('description')
+            .optional()
+            .isString()
+            .trim()
+            .isLength({ min: 10, max: 1000 })
+            .withMessage('Description must be between 10 and 1000 characters'),
+        body('maxParticipants')
+            .optional()
+            .isInt({ min: 1 })
+            .withMessage('Maximum participants must be at least 1'),
+    ],
+    validateRequest,
+    async (req, res) => {
+        try {
+            const { id } = req.params;
+            const updates = req.body;
+
+            // Check if competition exists
+            const competition = await Competition.findById(id);
+            if (!competition) {
+                return res.status(404).json({ message: 'Competition not found' });
+            }
+
+            // Prevent increasing currentParticipants beyond maxParticipants
+            if (updates.maxParticipants && updates.maxParticipants < competition.currentParticipants) {
+                return res.status(400).json({
+                    message: 'Maximum participants cannot be less than current participants',
+                });
+            }
+
+            // Update competition
+            const updatedCompetition = await Competition.findByIdAndUpdate(id, updates, {
+                new: true,
+                runValidators: true,
             });
+
+            res.status(200).json({ message: 'Competition updated successfully', competition: updatedCompetition });
+        } catch (error) {
+            console.error('Error updating competition:', error);
+            res.status(500).json({ message: 'Server error while updating competition' });
         }
-
-        const { name, description, startDate, endDate, prizePool, isPublished } = req.body;
-
-        const competition = await Competition.findById(req.params.id);
-        if (!competition) {
-            return res.status(404).json({
-                success: false,
-                message: 'Musobaqa topilmadi'
-            });
-        }
-
-        competition.name = name;
-        competition.description = description;
-        if (startDate) competition.startDate = startDate;
-        if (endDate) competition.endDate = endDate;
-        competition.prizePool = prizePool;
-        competition.isPublished = isPublished;
-
-        await competition.save();
-
-        res.json({
-            success: true,
-            message: 'Musobaqa muvaffaqiyatli yangilandi',
-            competition
-        });
-    } catch (error) {
-        console.error('Update competition error:', error);
-        res.status(500).json({
-            success: false,
-            message: 'Server xatosi'
-        });
     }
-});
+);
 
-// Delete competition
+// Delete a competition
 router.delete('/:id', adminAuth, async (req, res) => {
     try {
-        const competition = await Competition.findById(req.params.id);
+        const { id } = req.params;
+
+        // Check if competition exists
+        const competition = await Competition.findById(id);
         if (!competition) {
-            return res.status(404).json({
-                success: false,
-                message: 'Musobaqa topilmadi'
-            });
+            return res.status(404).json({ message: 'Competition not found' });
         }
 
-        await competition.remove();
-
-        res.json({
-            success: true,
-            message: 'Musobaqa muvaffaqiyatli o\'chirildi'
-        });
+        await Competition.findByIdAndDelete(id);
+        res.status(200).json({ message: 'Competition deleted successfully' });
     } catch (error) {
-        console.error('Delete competition error:', error);
-        res.status(500).json({
-            success: false,
-            message: 'Server xatosi'
-        });
-    }
-});
-
-// Add quiz to competition
-router.post('/:id/quizzes', adminAuth, [
-    check('quizId')
-        .notEmpty().withMessage('Quiz ID majburiy')
-        .isMongoId().withMessage('Yaroqli Quiz ID kiritilishi kerak'),
-    check('title')
-        .trim()
-        .notEmpty().withMessage('Quiz nomi majburiy'),
-    check('order')
-        .optional()
-        .isInt({ min: 1 }).withMessage('Tartib raqami 1 dan kichik bo\'lmasligi kerak')
-], async (req, res) => {
-    try {
-        const errors = validationResult(req);
-        if (!errors.isEmpty()) {
-            return res.status(400).json({
-                success: false,
-                errors: errors.array()
-            });
-        }
-
-        const { quizId, title, order } = req.body;
-        const competition = await Competition.findById(req.params.id);
-
-        if (!competition) {
-            return res.status(404).json({
-                success: false,
-                message: 'Musobaqa topilmadi'
-            });
-        }
-
-        // Check if quiz already exists in competition
-        const quizExists = competition.quizzes.some(q => q.quizId.toString() === quizId);
-        if (quizExists) {
-            return res.status(400).json({
-                success: false,
-                message: 'Bu quiz allaqachon musobaqada mavjud'
-            });
-        }
-
-        competition.quizzes.push({
-            quizId,
-            title,
-            order: order || competition.quizzes.length + 1
-        });
-
-        await competition.save();
-
-        res.json({
-            success: true,
-            message: 'Quiz musobaqaga muvaffaqiyatli qo\'shildi',
-            competition
-        });
-    } catch (error) {
-        console.error('Add quiz to competition error:', error);
-        res.status(500).json({
-            success: false,
-            message: 'Server xatosi'
-        });
-    }
-});
-
-// Remove quiz from competition
-router.delete('/:id/quizzes/:quizId', adminAuth, async (req, res) => {
-    try {
-        const competition = await Competition.findById(req.params.id);
-        if (!competition) {
-            return res.status(404).json({
-                success: false,
-                message: 'Musobaqa topilmadi'
-            });
-        }
-
-        const quizIndex = competition.quizzes.findIndex(q => q.quizId.toString() === req.params.quizId);
-        if (quizIndex === -1) {
-            return res.status(404).json({
-                success: false,
-                message: 'Quiz musobaqada topilmadi'
-            });
-        }
-
-        competition.quizzes.splice(quizIndex, 1);
-        await competition.save();
-
-        res.json({
-            success: true,
-            message: 'Quiz musobaqadan muvaffaqiyatli o\'chirildi',
-            competition
-        });
-    } catch (error) {
-        console.error('Remove quiz from competition error:', error);
-        res.status(500).json({
-            success: false,
-            message: 'Server xatosi'
-        });
+        console.error('Error deleting competition:', error);
+        res.status(500).json({ message: 'Server error while deleting competition' });
     }
 });
 
