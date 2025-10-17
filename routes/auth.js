@@ -117,14 +117,94 @@ router.get('/me', async (req, res) => {
     }
 });
 
-// /check/:telegramId endpoint
-router.get('/check/:telegramId', async (req, res) => {
+router.get('/profile/:telegramId', async (req, res) => {
     try {
         const { telegramId } = req.params;
 
-        console.log('Checking user existence for Telegram ID:', telegramId);
+        console.log('📋 Getting profile for Telegram ID:', telegramId);
+
+        if (!telegramId) {
+            return res.status(400).json({
+                success: false,
+                message: 'Telegram ID is required'
+            });
+        }
 
         const user = await User.findOne({ telegramId: telegramId.toString() });
+
+        if (!user) {
+            return res.status(404).json({
+                success: false,
+                message: 'User not found'
+            });
+        }
+
+        // IP manzilini yangilash
+        const clientIp = getClientIp(req);
+        user.ipAddress = clientIp;
+        user.ipHistory.push({
+            ip: clientIp,
+            timestamp: new Date()
+        });
+        if (user.ipHistory.length > 50) {
+            user.ipHistory = user.ipHistory.slice(-50);
+        }
+        await user.save();
+
+        return res.status(200).json({
+            success: true,
+            user: {
+                telegramId: user.telegramId,
+                firstName: user.firstName,
+                lastName: user.lastName,
+                username: user.username,
+                phone: user.phone,
+                region: user.region,
+                totalPoints: user.totalPoints,
+                monthlyPoints: user.monthlyPoints,
+                dailyPoints: user.dailyPoints,
+                weeklyPoints: user.weeklyPoints,
+                quizzesCompleted: user.quizzesCompleted,
+                correctAnswers: user.correctAnswers,
+                totalQuestions: user.totalQuestions,
+                accuracy: user.accuracy,
+                currentStreak: user.currentStreak,
+                longestStreak: user.longestStreak,
+                rank: user.rank,
+                level: user.level,
+                experience: user.experience,
+                onboardingCompleted: user.onboardingCompleted || false,
+                avatar: user.avatar
+            }
+        });
+
+    } catch (error) {
+        console.error('Error getting profile:', error);
+        return res.status(500).json({
+            success: false,
+            message: 'Server error'
+        });
+    }
+});
+
+// /check/:telegramId endpoint
+router.get('/check-user/:telegramId', async (req, res) => {
+    try {
+        const { telegramId } = req.params;
+
+        console.log('🔍 Checking user existence for Telegram ID:', telegramId);
+
+        if (!telegramId) {
+            return res.status(400).json({
+                success: false,
+                message: 'Telegram ID is required'
+            });
+        }
+
+        // Foydalanuvchini bazadan qidirish
+        const user = await User.findOne({ telegramId: telegramId.toString() });
+
+        console.log('📊 User found in database:', !!user);
 
         if (user) {
             // IP manzilini yangilash
@@ -139,8 +219,7 @@ router.get('/check/:telegramId', async (req, res) => {
             }
             await user.save();
 
-            console.log('User found:', user._id);
-            return res.json({
+            return res.status(200).json({
                 success: true,
                 exists: true,
                 user: {
@@ -156,26 +235,47 @@ router.get('/check/:telegramId', async (req, res) => {
                     bio: user.bio,
                     accountType: user.accountType,
                     experienceLevel: user.experienceLevel,
+                    quizFrequency: user.quizFrequency,
+                    interests: user.interests,
+                    totalPoints: user.totalPoints,
+                    monthlyPoints: user.monthlyPoints,
+                    dailyPoints: user.dailyPoints,
+                    weeklyPoints: user.weeklyPoints,
+                    quizzesCompleted: user.quizzesCompleted,
+                    correctAnswers: user.correctAnswers,
+                    totalQuestions: user.totalQuestions,
+                    accuracy: user.accuracy,
+                    currentStreak: user.currentStreak,
+                    longestStreak: user.longestStreak,
+                    rank: user.rank,
+                    level: user.level,
+                    experience: user.experience,
+                    lastActive: user.lastActive,
+                    preferences: user.preferences,
+                    onboardingCompleted: user.onboardingCompleted || false,
                     avatar: user.avatar,
-                    ipAddress: user.ipAddress
+                    ipAddress: user.ipAddress,
+                    createdAt: user.createdAt,
+                    updatedAt: user.updatedAt
                 }
             });
         } else {
-            console.log('User not found for Telegram ID:', telegramId);
-            return res.json({
+            return res.status(200).json({
                 success: true,
-                exists: false
+                exists: false,
+                message: 'User not found'
             });
         }
+
     } catch (error) {
-        console.error('Error checking user:', error);
+        console.error('❌ Error checking user existence:', error);
         return res.status(500).json({
             success: false,
-            error: 'Internal server error'
+            message: 'Server error while checking user existence',
+            error: error.message
         });
     }
 });
-
 // /register endpoint
 router.post('/register', async (req, res) => {
     try {
@@ -191,7 +291,12 @@ router.post('/register', async (req, res) => {
             region
         } = req.body;
 
-        console.log('Registration request received:', req.body);
+        console.log('🎯 Registration request received:', {
+            telegramId,
+            accountType,
+            name: name ? `${name.substring(0, 10)}...` : 'empty',
+            phone: phone ? `${phone.substring(0, 10)}...` : 'empty'
+        });
 
         if (!telegramId) {
             return res.status(400).json({
@@ -202,9 +307,10 @@ router.post('/register', async (req, res) => {
         }
 
         // Check if user already exists
-        let user = await User.findOne({ telegramId });
+        let user = await User.findOne({ telegramId: telegramId.toString() });
 
         if (user) {
+            console.log('⚠️ User already exists with Telegram ID:', telegramId);
             return res.status(400).json({
                 success: false,
                 error: 'User already exists',
@@ -223,7 +329,7 @@ router.post('/register', async (req, res) => {
         }
 
         // If no name provided, use default
-        if (!firstName) {
+        if (!firstName.trim()) {
             firstName = 'User';
             lastName = '';
         }
@@ -237,37 +343,98 @@ router.post('/register', async (req, res) => {
             });
         }
 
+        // Validate phone format
+        let cleanPhone = '';
+        if (phone) {
+            cleanPhone = phone.replace(/\D/g, '');
+            if (!cleanPhone.startsWith('998')) {
+                return res.status(400).json({
+                    success: false,
+                    error: 'Telefon raqami +998 formatida bo\'lishi kerak',
+                    code: 'INVALID_PHONE_FORMAT'
+                });
+            }
+            if (cleanPhone.length !== 12) {
+                return res.status(400).json({
+                    success: false,
+                    error: 'Telefon raqami 12 ta raqamdan iborat bo\'lishi kerak',
+                    code: 'INVALID_PHONE_LENGTH'
+                });
+            }
+            cleanPhone = '+' + cleanPhone;
+        }
+
+        // Validate birthDate
+        let validBirthDate = null;
+        if (birthDate) {
+            const birthDateObj = new Date(birthDate);
+            const today = new Date();
+            const minAgeDate = new Date(today.getFullYear() - 120, today.getMonth(), today.getDate());
+            const maxAgeDate = new Date(today.getFullYear() - 5, today.getMonth(), today.getDate());
+
+            if (birthDateObj < minAgeDate || birthDateObj > maxAgeDate) {
+                return res.status(400).json({
+                    success: false,
+                    error: 'Tug\'ilgan sana noto\'g\'ri',
+                    code: 'INVALID_BIRTHDATE'
+                });
+            }
+            validBirthDate = birthDateObj;
+        }
+
         // Generate default avatar URL
         const defaultAvatarUrl = `https://api.dicebear.com/7.x/adventurer/svg?seed=${telegramId}`;
 
         // IP manzilini olish
         const clientIp = getClientIp(req);
 
-        // Create new user
+        // Create new user - User modeliga mos keladigan ma'lumotlar
         user = new User({
             telegramId: telegramId.toString(),
             firstName: firstName.trim(),
             lastName: lastName.trim(),
             username: `user${telegramId.toString().slice(-6)}`, // Default username
-            phone: phone || '',
+            phone: cleanPhone || '',
             region: region || '',
-            birthDate: birthDate ? new Date(birthDate) : undefined,
+            birthDate: validBirthDate,
             accountType: accountType || 'personal',
             experienceLevel: experienceLevel || 'beginner',
             quizFrequency: quizFrequency || 'occasionally',
             interests: interests || [],
-            bio: 'Quiz enthusiast and knowledge seeker', // Default bio
-            avatar: defaultAvatarUrl, // Default avatar
+            bio: 'Quiz enthusiast and knowledge seeker',
+            avatar: defaultAvatarUrl,
             isActive: true,
             lastActive: new Date(),
-            onboardingCompleted: true,
+            onboardingCompleted: true, // RO'YXATDAN O'TGAN FOYDALANUVCHI UCHUN HAR DOIM TRUE
             ipAddress: clientIp,
-            ipHistory: [{ ip: clientIp, timestamp: new Date() }]
+            ipHistory: [{ ip: clientIp, timestamp: new Date() }],
+            // User modelidagi default qiymatlar
+            totalPoints: 0,
+            monthlyPoints: 0,
+            dailyPoints: 0,
+            weeklyPoints: 0,
+            quizzesCompleted: 0,
+            correctAnswers: 0,
+            totalQuestions: 0,
+            accuracy: 0,
+            currentStreak: 0,
+            longestStreak: 0,
+            rank: 9999,
+            level: 1,
+            experience: 0,
+            preferences: {
+                notifications: true,
+                darkMode: false,
+                language: 'uzbek',
+                soundEnabled: true,
+                vibrationEnabled: true,
+                showLeaderboard: true,
+                emailNotifications: false
+            }
         });
 
         await user.save();
-
-        console.log('User registered successfully:', user._id);
+        console.log('✅ User registered successfully:', user._id);
 
         // Generate JWT token
         const token = jwt.sign(
@@ -276,7 +443,7 @@ router.post('/register', async (req, res) => {
             { expiresIn: '30d' }
         );
 
-        // Prepare COMPLETE user response
+        // To'liq foydalanuvchi ma'lumotlarini tayyorlash
         const userResponse = {
             id: user._id,
             telegramId: user.telegramId,
@@ -309,7 +476,9 @@ router.post('/register', async (req, res) => {
             preferences: user.preferences,
             onboardingCompleted: user.onboardingCompleted,
             avatar: user.avatar,
-            ipAddress: user.ipAddress
+            ipAddress: user.ipAddress,
+            createdAt: user.createdAt,
+            updatedAt: user.updatedAt
         };
 
         res.status(201).json({
@@ -320,7 +489,7 @@ router.post('/register', async (req, res) => {
         });
 
     } catch (error) {
-        console.error('Registration error:', error);
+        console.error('❌ Registration error:', error);
 
         // Mongoose validation errors
         if (error.name === 'ValidationError') {

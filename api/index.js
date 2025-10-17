@@ -9,16 +9,13 @@ require('dotenv').config();
 
 const app = express();
 
-// ✅ 1. CORS ni BIRINCHI BO'LIB SOZLASH
-// Barcha originlar uchun ruxsat berish
+
 app.use(cors({
     origin: function (origin, callback) {
-        // Development rejimida barcha originlarni ruxsat berish
         if (process.env.NODE_ENV === 'development') {
             return callback(null, true);
         }
 
-        // Productionda faqat ma'lum originlarni ruxsat berish
         const allowedOrigins = [
             'http://localhost:3000',
             'http://localhost:3001',
@@ -49,19 +46,16 @@ app.use(cors({
     optionsSuccessStatus: 204
 }));
 
-// ✅ 2. Preflight so'rovlarini universal boshqarish
 app.options('*', cors());
 
-// ✅ 3. Security middleware
 app.use(helmet({
     crossOriginResourcePolicy: { policy: "cross-origin" },
-    contentSecurityPolicy: false // Development uchun o'chirib qo'yish
+    contentSecurityPolicy: false
 }));
 
 app.use(compression());
 app.use(morgan('combined'));
 
-// ✅ 4. Rate limiting
 const limiter = rateLimit({
     windowMs: 15 * 60 * 1000,
     max: 1000,
@@ -74,11 +68,9 @@ const limiter = rateLimit({
 });
 app.use(limiter);
 
-// ✅ 5. Body parser
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
-// ✅ 6. MongoDB connection
 mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/quiz_competition', {
     useNewUrlParser: true,
     useUnifiedTopology: true,
@@ -86,7 +78,6 @@ mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/quiz_comp
     .then(() => console.log('✅ MongoDB connected successfully'))
     .catch(err => console.error('❌ MongoDB connection error:', err));
 
-// ✅ 7. CORS test endpoint - BIRINCHI ROUTE SIFATIDA
 app.get('/api/test-cors', (req, res) => {
     res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
     res.header('Access-Control-Allow-Credentials', 'true');
@@ -98,7 +89,6 @@ app.get('/api/test-cors', (req, res) => {
     });
 });
 
-// ✅ 8. Health check
 app.get('/health', (req, res) => {
     res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
     res.json({
@@ -110,27 +100,22 @@ app.get('/health', (req, res) => {
     });
 });
 
-// ✅ 9. Routes
 app.use('/api/auth', require('../routes/auth'));
 app.use('/api/quiz', require('../routes/quiz'));
-// app.use('/api/competition', require('../routes/competition'));
 app.use('/api/user', require('../routes/user'));
 app.use('/api/leaderboard', require('../routes/leaderboard'));
 app.use('/api/telegram', require('../routes/telegram'));
 app.use('/api/referral', require('../routes/referral'));
 app.use('/api/admin', require('../routes/admin'));
 
-// ✅ 10. Admin routes - alohida CORS bilan
 app.use('/api/admin/competitions', require('../routes/adminCompetitionRoutes'));
 app.use('/api/admin/quizzes', require('../routes/adminQuizRoutes'));
 app.use('/api/admin/users', require('../routes/adminUserRoutes'));
 app.use('/api/admin/stats', require('../routes/adminStatsRoutes'));
 app.use('/api/admin/auth', require('../routes/adminAuth'));
 
-// ✅ 11. Error handling
 app.use(require('../middleware/errorHandler'));
 
-// ✅ 12. 404 handler
 app.use('*', (req, res) => {
     res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
     res.status(404).json({
